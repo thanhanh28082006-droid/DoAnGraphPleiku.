@@ -4,34 +4,33 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import osmnx as ox
 import folium
-from folium.plugins import AntPath, MarkerCluster, Fullscreen
+from folium.plugins import AntPath, Fullscreen
 from streamlit_folium import st_folium
 import warnings
 
-# Tắt cảnh báo
+# Tắt các cảnh báo hệ thống để màn hình sạch đẹp
 warnings.filterwarnings("ignore")
 
 # -----------------------------------------------------------------------------
-# 1. CẤU HÌNH GIAO DIỆN & CSS ĐẸP MẮT
+# 1. CẤU HÌNH GIAO DIỆN & TRANG TRÍ (CSS)
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="Pleiku City Navigation", layout="wide", page_icon="🗺️")
+st.set_page_config(page_title="Hệ thống Dẫn đường Pleiku", layout="wide", page_icon="🗺️")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
-
     html, body, [class*="css"] { font-family: 'Roboto', sans-serif; }
 
-    /* Header */
-    h1 { color: #2C3E50; text-align: center; font-weight: 700; letter-spacing: 1px; margin-bottom: 20px; }
+    /* Tiêu đề chính */
+    h1 { color: #2C3E50; text-align: center; font-weight: 700; margin-bottom: 20px; text-transform: uppercase; }
 
-    /* Tabs */
+    /* Trang trí các Tab */
     .stTabs [data-baseweb="tab-list"] { justify-content: center; gap: 20px; }
     .stTabs [data-baseweb="tab"] { background-color: #ECF0F1; border-radius: 10px; padding: 10px 20px; }
     .stTabs [aria-selected="true"] { background-color: #3498DB; color: white !important; font-weight: bold; }
 
-    /* Cards Lộ trình */
-    .route-container {
+    /* Khung hiển thị Lộ trình chi tiết */
+    .khung-lo-trinh {
         background-color: #FFFFFF;
         border-radius: 12px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
@@ -40,212 +39,256 @@ st.markdown("""
         overflow-y: auto;
     }
 
-    .timeline-item {
+    /* Các phần tử trong dòng thời gian (Timeline) */
+    .dong-thoi-gian {
         display: flex;
         padding-bottom: 15px;
         position: relative;
     }
+    .dong-thoi-gian::before {
+        content: ''; position: absolute; left: 19px; top: 35px; bottom: 0; width: 2px; background-color: #E0E0E0;
+    }
+    .dong-thoi-gian:last-child::before { display: none; }
 
-    .timeline-item:last-child { padding-bottom: 0; }
-
-    .timeline-marker {
-        flex-shrink: 0;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background-color: #E8F6F3;
-        color: #1ABC9C;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        margin-right: 15px;
-        z-index: 1;
+    .icon-moc {
+        flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+        background-color: #E8F6F3; color: #1ABC9C;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: bold; margin-right: 15px; z-index: 1;
         border: 2px solid #1ABC9C;
     }
 
-    .timeline-content {
-        flex-grow: 1;
-        background-color: #F8F9F9;
-        padding: 10px 15px;
-        border-radius: 8px;
-        border-left: 4px solid #BDC3C7;
+    .noi-dung-moc {
+        flex-grow: 1; background-color: #F8F9F9; padding: 10px 15px;
+        border-radius: 8px; border-left: 4px solid #BDC3C7;
     }
+    .noi-dung-moc:hover { background-color: #F0F3F4; border-left-color: #3498DB; transition: 0.3s; }
 
-    .timeline-content:hover { background-color: #F0F3F4; border-left-color: #3498DB; transition: 0.3s; }
+    .ten-duong { font-weight: bold; color: #2C3E50; font-size: 1.05em; display: block; }
+    .the-khoang-cach { float: right; font-size: 0.85em; color: #E74C3C; font-weight: bold; background: #FADBD8; padding: 2px 8px; border-radius: 10px; }
 
-    .street-name { font-weight: bold; color: #2C3E50; font-size: 1.05em; display: block; }
-    .dist-tag { float: right; font-size: 0.85em; color: #E74C3C; font-weight: bold; background: #FADBD8; padding: 2px 8px; border-radius: 10px; }
-
-    /* Stats Box */
-    .stats-box {
-        display: flex;
-        justify-content: space-around;
+    /* Hộp thống kê */
+    .hop-thong-ke {
+        display: flex; justify-content: space-around;
         background: linear-gradient(135deg, #6DD5FA 0%, #2980B9 100%);
-        color: white;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px;
         box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
     }
-    .stat-item { text-align: center; }
-    .stat-value { font-size: 1.5em; font-weight: bold; }
-    .stat-label { font-size: 0.9em; opacity: 0.9; }
-
+    .muc-thong-ke { text-align: center; }
+    .gia-tri-thong-ke { font-size: 1.5em; font-weight: bold; display: block; }
     </style>
     """, unsafe_allow_html=True)
 
-# Khởi tạo Session
-if 'G' not in st.session_state: st.session_state['G'] = nx.Graph()
-if 'path_nodes' not in st.session_state: st.session_state['path_nodes'] = []
-if 'path_detail' not in st.session_state: st.session_state['path_detail'] = []
-if 'map_center' not in st.session_state: st.session_state['map_center'] = [13.9785, 108.0051]
-if 'mst_edges' not in st.session_state: st.session_state['mst_edges'] = []  # Lưu kết quả Prim/Kruskal
+# Khởi tạo Bộ nhớ đệm (Session State)
+if 'do_thi' not in st.session_state: st.session_state['do_thi'] = nx.Graph()
+if 'lo_trinh_tim_duoc' not in st.session_state: st.session_state['lo_trinh_tim_duoc'] = []
+if 'chi_tiet_lo_trinh' not in st.session_state: st.session_state['chi_tiet_lo_trinh'] = []
+if 'tam_ban_do' not in st.session_state: st.session_state['tam_ban_do'] = [13.9785, 108.0051]
+if 'cay_khung_mst' not in st.session_state: st.session_state['cay_khung_mst'] = []  # Lưu kết quả Prim/Kruskal
 
 
 # -----------------------------------------------------------------------------
-# HÀM XỬ LÝ LỘ TRÌNH THÔNG MINH
+# HÀM XỬ LÝ 1: TRÍCH XUẤT THÔNG TIN LỘ TRÌNH (TÊN ĐƯỜNG, ĐỘ DÀI)
 # -----------------------------------------------------------------------------
-def get_route_details(G, path_nodes):
-    if not path_nodes or len(path_nodes) < 2: return []
-    steps = []
-    curr_name = None
-    curr_dist = 0
+def lay_thong_tin_lo_trinh(do_thi, danh_sach_nut):
+    if not danh_sach_nut or len(danh_sach_nut) < 2: return []
+    cac_buoc_di = []
+    ten_duong_hien_tai = None
+    quang_duong_hien_tai = 0
 
-    for u, v in zip(path_nodes[:-1], path_nodes[1:]):
-        data = G.get_edge_data(u, v)[0]
-        length = data.get('length', 0)
-        name = data.get('name', 'Đường nội bộ')
-        if isinstance(name, list): name = name[0]  # Lấy tên đầu tiên nếu có nhiều tên
+    # Duyệt qua từng đoạn đường
+    for u, v in zip(danh_sach_nut[:-1], danh_sach_nut[1:]):
+        du_lieu_canh = do_thi.get_edge_data(u, v)[0]
+        do_dai = du_lieu_canh.get('length', 0)
+        ten = du_lieu_canh.get('name', 'Đường nội bộ')
+        if isinstance(ten, list): ten = ten[0]  # Lấy tên đầu tiên nếu có nhiều tên
 
-        if name == curr_name:
-            curr_dist += length
+        # Gộp các đoạn đường cùng tên lại
+        if ten == ten_duong_hien_tai:
+            quang_duong_hien_tai += do_dai
         else:
-            if curr_name: steps.append({"name": curr_name, "dist": curr_dist})
-            curr_name = name
-            curr_dist = length
-    if curr_name: steps.append({"name": curr_name, "dist": curr_dist})
-    return steps
+            if ten_duong_hien_tai:
+                cac_buoc_di.append({"ten": ten_duong_hien_tai, "do_dai": quang_duong_hien_tai})
+            ten_duong_hien_tai = ten
+            quang_duong_hien_tai = do_dai
+
+    if ten_duong_hien_tai:
+        cac_buoc_di.append({"ten": ten_duong_hien_tai, "do_dai": quang_duong_hien_tai})
+    return cac_buoc_di
 
 
 # -----------------------------------------------------------------------------
-# HÀM VẼ LÝ THUYẾT
+# HÀM XỬ LÝ 2: VẼ ĐỒ THỊ LÝ THUYẾT (TAB 1)
 # -----------------------------------------------------------------------------
-def draw_theory(graph, path=None, edges=None, title=""):
-    fig, ax = plt.subplots(figsize=(8, 5))
-    pos = nx.spring_layout(graph, seed=42)
-    nx.draw(graph, pos, with_labels=True, node_color='#D6EAF8', edge_color='#BDC3C7', node_size=600, font_weight='bold',
-            ax=ax)
-    labels = nx.get_edge_attributes(graph, 'weight')
-    nx.draw_networkx_edge_labels(graph, pos, edge_labels=labels, font_size=9, ax=ax)
+def ve_do_thi_ly_thuyet(do_thi, duong_di=None, danh_sach_canh=None, tieu_de=""):
+    hinh_ve, truc = plt.subplots(figsize=(8, 5))
+    vi_tri = nx.spring_layout(do_thi, seed=42)
 
-    if path:
-        path_edges = list(zip(path, path[1:]))
-        nx.draw_networkx_nodes(graph, pos, nodelist=path, node_color='#E74C3C', node_size=700, ax=ax)
-        nx.draw_networkx_edges(graph, pos, edgelist=path_edges, width=3, edge_color='#E74C3C', ax=ax)
+    # Vẽ nền
+    nx.draw(do_thi, vi_tri, with_labels=True, node_color='#D6EAF8', edge_color='#BDC3C7', node_size=600,
+            font_weight='bold', ax=truc)
+    nhan_canh = nx.get_edge_attributes(do_thi, 'weight')
+    nx.draw_networkx_edge_labels(do_thi, vi_tri, edge_labels=nhan_canh, font_size=9, ax=truc)
 
-    if edges:
-        nx.draw_networkx_edges(graph, pos, edgelist=edges, width=3, edge_color='#27AE60', ax=ax)
+    # Tô màu đường đi (nếu có)
+    if duong_di:
+        canh_duong_di = list(zip(duong_di, duong_di[1:]))
+        nx.draw_networkx_nodes(do_thi, vi_tri, nodelist=duong_di, node_color='#E74C3C', node_size=700, ax=truc)
+        nx.draw_networkx_edges(do_thi, vi_tri, edgelist=canh_duong_di, width=3, edge_color='#E74C3C', ax=truc)
 
-    ax.set_title(title, color="#2C3E50", fontsize=12)
-    st.pyplot(fig)
+    # Tô màu cây khung (Prim/Kruskal)
+    if danh_sach_canh:
+        nx.draw_networkx_edges(do_thi, vi_tri, edgelist=danh_sach_canh, width=3, edge_color='#27AE60', ax=truc)
+
+    truc.set_title(tieu_de, color="#2C3E50", fontsize=12)
+    st.pyplot(hinh_ve)
 
 
 # -----------------------------------------------------------------------------
-# MAIN APP
+# GIAO DIỆN CHÍNH CỦA ỨNG DỤNG
 # -----------------------------------------------------------------------------
-st.title("🏙️ ỨNG DỤNG CÁC THUẬT TOÁN CHO HỆ THỐNG DẪN ĐƯỜNG THÔNG MINH TP. PLEIKU")
+st.title("🏙️ HỆ THỐNG DẪN ĐƯỜNG THÔNG MINH TP. PLEIKU")
 
-tab1, tab2 = st.tabs(["📚 PHẦN 1: LÝ THUYẾT ĐỒ THỊ", "🚀 PHẦN 2: BẢN ĐỒ THỰC TẾ "])
+tab_ly_thuyet, tab_ban_do = st.tabs(["📚 PHẦN 1: LÝ THUYẾT ĐỒ THỊ", "🚀 PHẦN 2: BẢN ĐỒ THỰC TẾ"])
 
 # =============================================================================
-# TAB 1: LÝ THUYẾT
+# TAB 1: LÝ THUYẾT (CƠ BẢN & NÂNG CAO)
 # =============================================================================
-with tab1:
-    c1, c2 = st.columns([1, 1.5])
-    with c1:
-        st.subheader("🛠️ Cấu hình")
-        type_opt = st.radio("Loại:", ["Vô hướng", "Có hướng"], horizontal=True)
-        directed = True if type_opt == "Có hướng" else False
-        inp = st.text_area("Nhập cạnh (u v w):", "A B 4\nA C 2\nB C 5\nB D 10\nC E 3\nD F 11\nE D 4", height=150)
+with tab_ly_thuyet:
+    cot_trai, cot_phai = st.columns([1, 1.5])
 
-        if st.button("Khởi tạo Đồ thị"):
+    with cot_trai:
+        st.subheader("🛠️ Cấu hình Đồ thị")
+        loai_do_thi = st.radio("Chọn loại:", ["Vô hướng", "Có hướng"], horizontal=True)
+        co_huong = True if loai_do_thi == "Có hướng" else False
+
+        du_lieu_nhap = st.text_area("Nhập danh sách cạnh (u v w):", "A B 4\nA C 2\nB C 5\nB D 10\nC E 3\nD F 11\nE D 4",
+                                    height=150)
+
+        if st.button("🚀 Khởi tạo Đồ thị"):
             try:
-                G = nx.DiGraph() if directed else nx.Graph()
-                for l in inp.split('\n'):
-                    p = l.split()
-                    if len(p) >= 2: G.add_edge(p[0], p[1], weight=int(p[2]) if len(p) > 2 else 1)
-                st.session_state['G'] = G
-                st.success("Thành công!")
+                G_moi = nx.DiGraph() if co_huong else nx.Graph()
+                for dong in du_lieu_nhap.split('\n'):
+                    phan = dong.split()
+                    if len(phan) >= 2:
+                        trong_so = int(phan[2]) if len(phan) > 2 else 1
+                        G_moi.add_edge(phan[0], phan[1], weight=trong_so)
+                st.session_state['do_thi'] = G_moi
+                st.success("Đã tạo đồ thị thành công!")
             except:
-                st.error("Lỗi dữ liệu")
+                st.error("Lỗi dữ liệu nhập vào! Hãy kiểm tra lại.")
 
-    with c2:
-        if len(st.session_state['G']) > 0: draw_theory(st.session_state['G'], title="Mô hình trực quan")
+    with cot_phai:
+        # Nếu đã có đồ thị thì vẽ ra
+        if len(st.session_state['do_thi']) > 0:
+            ve_do_thi_ly_thuyet(st.session_state['do_thi'], tieu_de="Hình ảnh trực quan")
 
-    if len(st.session_state['G']) > 0:
+    if len(st.session_state['do_thi']) > 0:
         st.divider()
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.info("Biểu diễn")
-            st.json(nx.to_dict_of_lists(st.session_state['G']), expanded=False)
-            st.write(f"Bipartite: {nx.is_bipartite(st.session_state['G'])}")
-        with col2:
-            st.warning("Thuật toán")
-            s = st.selectbox("Start", list(st.session_state['G'].nodes()))
-            e = st.selectbox("End", list(st.session_state['G'].nodes()), index=len(st.session_state['G']) - 1)
-            if st.button("BFS"):
-                p = list(dict(nx.bfs_successors(st.session_state['G'], s)).keys());
-                p.insert(0, s)
-                draw_theory(st.session_state['G'], path=p, title="BFS Traversal")
-            if st.button("DFS"):
-                p = list(nx.dfs_preorder_nodes(st.session_state['G'], s))
-                draw_theory(st.session_state['G'], path=p, title="DFS Traversal")
-            if st.button("Dijkstra"):
+        c1, c2, c3 = st.columns(3)
+
+        # Cột 1: Biểu diễn
+        with c1:
+            st.info("1. Biểu diễn dữ liệu (YC6)")
+
+            # CẬP NHẬT: Thêm "Danh sách cạnh" vào menu cho đủ bộ 3 món
+            dang_xem = st.selectbox("Chọn cách xem:", ["Danh sách kề", "Ma trận kề", "Danh sách cạnh"])
+
+            if dang_xem == "Ma trận kề":
+                # Hiển thị Ma trận (Matrix)
+                df = pd.DataFrame(nx.adjacency_matrix(st.session_state['do_thi']).todense(),
+                                  index=st.session_state['do_thi'].nodes(),
+                                  columns=st.session_state['do_thi'].nodes())
+                st.dataframe(df, height=150)
+
+            elif dang_xem == "Danh sách kề":
+                # Hiển thị Danh sách kề (Adjacency List)
+                st.json(nx.to_dict_of_lists(st.session_state['do_thi']), expanded=False)
+
+            else:
+                # Hiển thị Danh sách cạnh (Edge List) -> ĐÚNG YÊU CẦU 100%
+                st.write("Danh sách cạnh (u, v, w):")
+                canh = list(st.session_state['do_thi'].edges(data=True))
+                st.write(canh)
+
+            # Kiểm tra 2 phía (YC5)
+            st.write("---")
+            if st.button("Kiểm tra 2 phía (Bipartite)"):
+                kq = nx.is_bipartite(st.session_state['do_thi'])
+                st.write(f"Kết quả: {'✅ Có' if kq else '❌ Không'}")
+
+        # Cột 2: Thuật toán tìm kiếm
+        with c2:
+            st.warning("2. Thuật toán Tìm kiếm")
+            nut_bat_dau = st.selectbox("Điểm bắt đầu:", list(st.session_state['do_thi'].nodes()))
+            nut_ket_thuc = st.selectbox("Điểm kết thúc:", list(st.session_state['do_thi'].nodes()),
+                                        index=len(st.session_state['do_thi'].nodes()) - 1)
+
+            if st.button("Chạy BFS (Chiều rộng)"):
+                # Lấy thứ tự duyệt BFS
+                duong_bfs = list(dict(nx.bfs_successors(st.session_state['do_thi'], nut_bat_dau)).keys())
+                duong_bfs.insert(0, nut_bat_dau)
+                ve_do_thi_ly_thuyet(st.session_state['do_thi'], duong_di=duong_bfs,
+                                    tieu_de="Duyệt theo chiều rộng (BFS)")
+
+            if st.button("Chạy DFS (Chiều sâu)"):
+                duong_dfs = list(nx.dfs_preorder_nodes(st.session_state['do_thi'], nut_bat_dau))
+                ve_do_thi_ly_thuyet(st.session_state['do_thi'], duong_di=duong_dfs,
+                                    tieu_de="Duyệt theo chiều sâu (DFS)")
+
+            if st.button("Chạy Dijkstra (Ngắn nhất)"):
                 try:
-                    p = nx.shortest_path(st.session_state['G'], s, e, weight='weight')
-                    draw_theory(st.session_state['G'], path=p, title="Shortest Path")
+                    duong_ngan_nhat = nx.shortest_path(st.session_state['do_thi'], nut_bat_dau, nut_ket_thuc,
+                                                       weight='weight')
+                    ve_do_thi_ly_thuyet(st.session_state['do_thi'], duong_di=duong_ngan_nhat,
+                                        tieu_de="Đường đi ngắn nhất (Dijkstra)")
                 except:
-                    st.error("No Path")
-        with col3:
-            st.success("Nâng cao (Cây khung)")
-            # CHIA LÀM 2 CỘT CHO PRIM VÀ KRUSKAL
-            ck1, ck2 = st.columns(2)
-            with ck1:
-                if st.button("Prim"):
-                    if not directed and nx.is_connected(st.session_state['G']):
-                        mst = nx.minimum_spanning_tree(st.session_state['G'], algorithm='prim')
-                        draw_theory(st.session_state['G'], edges=list(mst.edges()),
-                                    title=f"Prim MST (W={mst.size(weight='weight')})")
+                    st.error("Không tìm thấy đường đi!")
+
+        # Cột 3: Nâng cao
+        with c3:
+            st.success("3. Thuật toán Nâng cao")
+            cot_k1, cot_k2 = st.columns(2)
+
+            with cot_k1:
+                if st.button("Chạy Prim"):
+                    if not co_huong and nx.is_connected(st.session_state['do_thi']):
+                        cay_khung = nx.minimum_spanning_tree(st.session_state['do_thi'], algorithm='prim')
+                        ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=list(cay_khung.edges()),
+                                            tieu_de=f"Prim MST (W={cay_khung.size(weight='weight')})")
                     else:
-                        st.error("Lỗi: Đồ thị phải vô hướng & liên thông")
-            with ck2:
-                if st.button("Kruskal"):  # <-- ĐÃ THÊM KRUSKAL
-                    if not directed and nx.is_connected(st.session_state['G']):
-                        mst = nx.minimum_spanning_tree(st.session_state['G'], algorithm='kruskal')
-                        draw_theory(st.session_state['G'], edges=list(mst.edges()),
-                                    title=f"Kruskal MST (W={mst.size(weight='weight')})")
+                        st.error("Lỗi: Chỉ áp dụng cho đồ thị Vô hướng & Liên thông")
+
+            with cot_k2:
+                if st.button("Chạy Kruskal"):
+                    if not co_huong and nx.is_connected(st.session_state['do_thi']):
+                        cay_khung = nx.minimum_spanning_tree(st.session_state['do_thi'], algorithm='kruskal')
+                        ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=list(cay_khung.edges()),
+                                            tieu_de=f"Kruskal MST (W={cay_khung.size(weight='weight')})")
                     else:
-                        st.error("Lỗi: Đồ thị phải vô hướng & liên thông")
+                        st.error("Lỗi: Chỉ áp dụng cho đồ thị Vô hướng & Liên thông")
 
 # =============================================================================
 # TAB 2: BẢN ĐỒ PLEIKU (100 ĐỊA ĐIỂM)
 # =============================================================================
-with tab2:
+with tab_ban_do:
+    # Hàm tải bản đồ (chạy 1 lần rồi lưu cache cho nhanh)
     @st.cache_resource
-    def load_map():
-        # Bán kính 7km để bao trùm 100 điểm
+    def tai_ban_do_pleiku():
+        # Tải bán kính 7km quanh Quảng trường
         return ox.graph_from_point((13.9785, 108.0051), dist=7000, network_type='drive')
 
 
-    with st.spinner("Đang tải dữ liệu bản đồ TP. Pleiku (Khoảng 45s - Vui lòng đợi)..."):
+    with st.spinner("Đang tải dữ liệu bản đồ TP. Pleiku (Khoảng 45 giây)..."):
         try:
-            G_map = load_map(); st.success("✅ Đã tải xong bản đồ!")
+            Do_thi_Pleiku = tai_ban_do_pleiku()
+            st.success("✅ Đã tải xong bản đồ!")
         except:
-            st.error("Lỗi tải map"); st.stop()
+            st.error("Lỗi tải bản đồ, vui lòng thử lại!")
+            st.stop()
 
     # DANH SÁCH ~100 ĐỊA ĐIỂM (Đã chuẩn hóa tọa độ)
-    locations = {
+    ds_dia_diem = {
         "--- TRUNG TÂM ---": (0, 0),
         "Quảng trường Đại Đoàn Kết": (13.9785, 108.0051),
         "Bưu điện Tỉnh Gia Lai": (13.9770, 108.0040),
@@ -332,168 +375,189 @@ with tab2:
     }
 
     # Lọc bỏ các dòng tiêu đề (có tọa độ 0,0)
-    valid_locs = {k: v for k, v in locations.items() if v != (0, 0)}
+    dia_diem_hop_le = {k: v for k, v in ds_dia_diem.items() if v != (0, 0)}
 
-    c_start, c_end, c_algo = st.columns([1.5, 1.5, 1])
-    start = c_start.selectbox("📍 Điểm đi:", list(valid_locs.keys()), index=0)
-    end = c_end.selectbox("🏁 Điểm đến:", list(valid_locs.keys()), index=8)
-    algo = c_algo.selectbox("Thuật toán:", ["Dijkstra (Tối ưu)", "BFS (Ít rẽ)", "DFS (Minh họa)"])
+    cot_di, cot_den, cot_thuat_toan = st.columns([1.5, 1.5, 1])
+    diem_bat_dau = cot_di.selectbox("📍 Điểm xuất phát:", list(dia_diem_hop_le.keys()), index=0)
+    diem_ket_thuc = cot_den.selectbox("🏁 Điểm đến:", list(dia_diem_hop_le.keys()), index=8)
+    thuat_toan_tim_duong = cot_thuat_toan.selectbox("Thuật toán:",
+                                                    ["Dijkstra (Tối ưu)", "BFS (Ít rẽ)", "DFS (Minh họa)"])
 
     st.divider()  # Kẻ ngang phân cách
 
-    # CHIA LÀM 2 CỘT NÚT BẤM (TÌM ĐƯỜNG & QUY HOẠCH)
-    col_btn_path, col_btn_plan = st.columns([1, 1])
+    # CHIA LÀM 2 CỘT NÚT BẤM
+    cot_nut_tim, cot_nut_quy_hoach = st.columns([1, 1])
 
-    with col_btn_path:
-        btn_find = st.button("🚀 TÌM ĐƯỜNG (A -> B)", type="primary", use_container_width=True)
+    with cot_nut_tim:
+        nut_tim_duong = st.button("🚀 TÌM ĐƯỜNG NGAY", type="primary", use_container_width=True)
 
-    with col_btn_plan:
-        # SELECT BOX ĐỂ CHỌN PRIM HOẶC KRUSKAL
-        mst_algo_choice = st.selectbox("Thuật toán Quy hoạch:", ["Prim", "Kruskal"], label_visibility="collapsed")
-        btn_mst = st.button(f"🌲 QUY HOẠCH ({mst_algo_choice.upper()})", use_container_width=True)
+    with cot_nut_quy_hoach:
+        # Chọn thuật toán quy hoạch
+        chon_quy_hoach = st.selectbox("Thuật toán Quy hoạch:", ["Prim", "Kruskal"], label_visibility="collapsed")
+        nut_quy_hoach = st.button(f"🌲 QUY HOẠCH ({chon_quy_hoach.upper()})", use_container_width=True)
 
     # --- LOGIC TÌM ĐƯỜNG (A->B) ---
-    if btn_find:
-        st.session_state['mst_edges'] = []  # Reset MST
+    if nut_tim_duong:
+        st.session_state['cay_khung_mst'] = []  # Xóa kết quả Quy hoạch cũ
         try:
-            u_coord, v_coord = valid_locs[start], valid_locs[end]
-            orig = ox.distance.nearest_nodes(G_map, u_coord[1], u_coord[0])
-            dest = ox.distance.nearest_nodes(G_map, v_coord[1], v_coord[0])
+            # Tìm tọa độ
+            u_coord, v_coord = dia_diem_hop_le[diem_bat_dau], dia_diem_hop_le[diem_ket_thuc]
+            # Tìm nút gần nhất trên bản đồ
+            nut_goc = ox.distance.nearest_nodes(Do_thi_Pleiku, u_coord[1], u_coord[0])
+            nut_dich = ox.distance.nearest_nodes(Do_thi_Pleiku, v_coord[1], v_coord[0])
 
-            path = []
-            if "Dijkstra" in algo:
-                path = nx.shortest_path(G_map, orig, dest, weight='length')
-            elif "BFS" in algo:
-                path = nx.shortest_path(G_map, orig, dest, weight=None)
-            elif "DFS" in algo:
+            duong_di = []
+            if "Dijkstra" in thuat_toan_tim_duong:
+                duong_di = nx.shortest_path(Do_thi_Pleiku, nut_goc, nut_dich, weight='length')
+            elif "BFS" in thuat_toan_tim_duong:
+                duong_di = nx.shortest_path(Do_thi_Pleiku, nut_goc, nut_dich, weight=None)
+            elif "DFS" in thuat_toan_tim_duong:
                 try:
-                    path = next(nx.all_simple_paths(G_map, orig, dest, cutoff=150))
+                    duong_di = next(nx.all_simple_paths(Do_thi_Pleiku, nut_goc, nut_dich, cutoff=150))
                 except:
-                    path = []
+                    duong_di = []
 
-            st.session_state['path_nodes'] = path
-            st.session_state['path_detail'] = get_route_details(G_map, path)
-            st.session_state['map_center'] = [(u_coord[0] + v_coord[0]) / 2, (u_coord[1] + v_coord[1]) / 2]
+            st.session_state['lo_trinh_tim_duoc'] = duong_di
+            st.session_state['chi_tiet_lo_trinh'] = lay_thong_tin_lo_trinh(Do_thi_Pleiku, duong_di)
+            # Cập nhật tâm bản đồ về giữa lộ trình
+            st.session_state['tam_ban_do'] = [(u_coord[0] + v_coord[0]) / 2, (u_coord[1] + v_coord[1]) / 2]
 
         except Exception as e:
-            st.error(f"Không tìm thấy đường: {e}")
+            st.error(f"Không tìm thấy đường đi: {e}")
 
-    # --- LOGIC QUY HOẠCH (MST - PRIM/KRUSKAL) ---
-    if btn_mst:
-        st.session_state['path_nodes'] = []  # Reset Tìm đường
+    # --- LOGIC QUY HOẠCH (PRIM/KRUSKAL) ---
+    if nut_quy_hoach:
+        st.session_state['lo_trinh_tim_duoc'] = []  # Xóa đường đi cũ
         try:
-            with st.spinner(f"Đang chạy thuật toán {mst_algo_choice} để nối mạng lưới trung tâm..."):
+            with st.spinner(f"Đang chạy thuật toán {chon_quy_hoach} để nối mạng lưới trung tâm..."):
                 # Lấy đồ thị con (Bán kính 2km) để chạy nhanh
-                center_node = ox.distance.nearest_nodes(G_map, 108.0051, 13.9785)
-                subgraph = nx.ego_graph(G_map, center_node, radius=2000, distance='length')
+                nut_trung_tam = ox.distance.nearest_nodes(Do_thi_Pleiku, 108.0051, 13.9785)
+                do_thi_con = nx.ego_graph(Do_thi_Pleiku, nut_trung_tam, radius=2000, distance='length')
 
-                # CHỌN THUẬT TOÁN DỰA TRÊN SELECTBOX
-                algo_key = 'prim' if mst_algo_choice == 'Prim' else 'kruskal'
-                mst = nx.minimum_spanning_tree(subgraph.to_undirected(), weight='length', algorithm=algo_key)
+                # Chạy thuật toán
+                khoa_thuat_toan = 'prim' if chon_quy_hoach == 'Prim' else 'kruskal'
+                cay_khung = nx.minimum_spanning_tree(do_thi_con.to_undirected(), weight='length',
+                                                     algorithm=khoa_thuat_toan)
 
-                edges_coords = []
-                for u, v, data in mst.edges(data=True):
+                danh_sach_toa_do_canh = []
+                for u, v, data in cay_khung.edges(data=True):
                     if 'geometry' in data:
                         xs, ys = data['geometry'].xy
-                        edges_coords.append(list(zip(ys, xs)))
+                        danh_sach_toa_do_canh.append(list(zip(ys, xs)))
                     else:
-                        u_node, v_node = G_map.nodes[u], G_map.nodes[v]
-                        edges_coords.append([(u_node['y'], u_node['x']), (v_node['y'], v_node['x'])])
+                        u_node, v_node = Do_thi_Pleiku.nodes[u], Do_thi_Pleiku.nodes[v]
+                        danh_sach_toa_do_canh.append([(u_node['y'], u_node['x']), (v_node['y'], v_node['x'])])
 
-                st.session_state['mst_edges'] = edges_coords
-                st.session_state['map_center'] = [13.9785, 108.0051]
+                st.session_state['cay_khung_mst'] = danh_sach_toa_do_canh
+                st.session_state['tam_ban_do'] = [13.9785, 108.0051]
                 st.success(
-                    f"Đã quy hoạch xong bằng {mst_algo_choice}! Tổng chiều dài cáp: {mst.size(weight='length') / 1000:.2f} km")
+                    f"Đã quy hoạch xong bằng {chon_quy_hoach}! Tổng chiều dài cáp: {cay_khung.size(weight='length') / 1000:.2f} km")
         except Exception as e:
             st.error(f"Lỗi thuật toán: {e}")
 
-    # --- HIỂN THỊ KẾT QUẢ ---
-    if st.session_state['path_nodes']:
-        path = st.session_state['path_nodes']
-        details = st.session_state['path_detail']
-        total_km = sum(d['dist'] for d in details) / 1000
+    # --- HIỂN THỊ KẾT QUẢ RA MÀN HÌNH ---
+    if st.session_state['lo_trinh_tim_duoc']:
+        duong_di = st.session_state['lo_trinh_tim_duoc']
+        chi_tiet = st.session_state['chi_tiet_lo_trinh']
+        tong_km = sum(d['do_dai'] for d in chi_tiet) / 1000
 
+        # Hộp thống kê
         st.markdown(f"""
-        <div class="stats-box">
-            <div class="stat-item"><div class="stat-value">{total_km:.2f} km</div><div class="stat-label">Tổng quãng đường</div></div>
-            <div class="stat-item"><div class="stat-value">{len(details)}</div><div class="stat-label">Số đoạn đường</div></div>
-            <div class="stat-item"><div class="stat-value">{int(total_km * 2)} phút</div><div class="stat-label">Thời gian dự kiến</div></div>
+        <div class="hop-thong-ke">
+            <div class="muc-thong-ke"><div class="gia-tri-thong-ke">{tong_km:.2f} km</div><div class="nhan-thong-ke">Tổng quãng đường</div></div>
+            <div class="muc-thong-ke"><div class="gia-tri-thong-ke">{len(chi_tiet)}</div><div class="nhan-thong-ke">Số đoạn đường</div></div>
+            <div class="muc-thong-ke"><div class="gia-tri-thong-ke">{int(tong_km * 2)} phút</div><div class="nhan-thong-ke">Thời gian dự kiến</div></div>
         </div>
         """, unsafe_allow_html=True)
 
-        col_map, col_list = st.columns([2, 1.2])
+        cot_ban_do, cot_chi_tiet = st.columns([2, 1.2])
 
-        with col_list:
-            st.markdown("### 📋 Chi tiết lộ trình")
+        # Cột Phải: Lộ trình chi tiết
+        with cot_chi_tiet:
+            st.markdown("### 📋 Lộ trình chi tiết")
             with st.container(height=600):
-                st.markdown('<div class="route-container">', unsafe_allow_html=True)
+                st.markdown('<div class="khung-lo-trinh">', unsafe_allow_html=True)
+
+                # Điểm đầu
                 st.markdown(f'''
-                <div class="timeline-item">
-                    <div class="timeline-marker" style="background:#D5F5E3; border-color:#2ECC71; color:#27AE60;">A</div>
-                    <div class="timeline-content"><span class="street-name">Bắt đầu: {start}</span></div>
+                <div class="dong-thoi-gian">
+                    <div class="icon-moc" style="background:#D5F5E3; border-color:#2ECC71; color:#27AE60;">A</div>
+                    <div class="noi-dung-moc"><span class="ten-duong">Bắt đầu: {diem_bat_dau}</span></div>
                 </div>
                 ''', unsafe_allow_html=True)
 
-                for i, step in enumerate(details):
+                # Các đoạn đường
+                for i, buoc in enumerate(chi_tiet):
                     st.markdown(f'''
-                    <div class="timeline-item">
-                        <div class="timeline-marker">{i + 1}</div>
-                        <div class="timeline-content">
-                            <span class="dist-tag">{step['dist']:.0f} m</span>
-                            <span class="street-name">{step['name']}</span>
+                    <div class="dong-thoi-gian">
+                        <div class="icon-moc">{i + 1}</div>
+                        <div class="noi-dung-moc">
+                            <span class="the-khoang-cach">{buoc['do_dai']:.0f} m</span>
+                            <span class="ten-duong">{buoc['ten']}</span>
                         </div>
                     </div>
                     ''', unsafe_allow_html=True)
 
+                # Điểm cuối
                 st.markdown(f'''
-                <div class="timeline-item">
-                    <div class="timeline-marker" style="background:#FADBD8; border-color:#E74C3C; color:#C0392B;">B</div>
-                    <div class="timeline-content"><span class="street-name">Đích đến: {end}</span></div>
+                <div class="dong-thoi-gian">
+                    <div class="icon-moc" style="background:#FADBD8; border-color:#E74C3C; color:#C0392B;">B</div>
+                    <div class="noi-dung-moc"><span class="ten-duong">Đích đến: {diem_ket_thuc}</span></div>
                 </div>
                 ''', unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        with col_map:
-            m = folium.Map(location=st.session_state['map_center'], zoom_start=14, tiles="cartodbpositron")
+        # Cột Trái: Bản đồ
+        with cot_ban_do:
+            m = folium.Map(location=st.session_state['tam_ban_do'], zoom_start=14, tiles="cartodbpositron")
             Fullscreen().add_to(m)
 
-            folium.Marker(valid_locs[start], icon=folium.Icon(color="green", icon="play", prefix='fa'),
-                          popup="START").add_to(m)
-            folium.Marker(valid_locs[end], icon=folium.Icon(color="red", icon="flag", prefix='fa'), popup="END").add_to(
-                m)
+            # Marker điểm đầu cuối
+            folium.Marker(dia_diem_hop_le[diem_bat_dau], icon=folium.Icon(color="green", icon="play", prefix='fa'),
+                          popup="BẮT ĐẦU").add_to(m)
+            folium.Marker(dia_diem_hop_le[diem_ket_thuc], icon=folium.Icon(color="red", icon="flag", prefix='fa'),
+                          popup="KẾT THÚC").add_to(m)
 
-            route_coords = []
-            start_node = G_map.nodes[path[0]]
-            route_coords.append((start_node['y'], start_node['x']))
+            # Vẽ đường cong (Geometry)
+            toa_do_duong_di = []
+            nut_dau = Do_thi_Pleiku.nodes[duong_di[0]]
+            toa_do_duong_di.append((nut_dau['y'], nut_dau['x']))
 
-            for u, v in zip(path[:-1], path[1:]):
-                edge = G_map.get_edge_data(u, v)[0]
-                if 'geometry' in edge:
-                    xs, ys = edge['geometry'].xy
-                    route_coords.extend(list(zip(ys, xs)))
+            for u, v in zip(duong_di[:-1], duong_di[1:]):
+                canh = Do_thi_Pleiku.get_edge_data(u, v)[0]
+                if 'geometry' in canh:
+                    xs, ys = canh['geometry'].xy
+                    toa_do_duong_di.extend(list(zip(ys, xs)))
                 else:
-                    node_v = G_map.nodes[v]
-                    route_coords.extend([(node_v['y'], node_v['x'])])
+                    nut_v = Do_thi_Pleiku.nodes[v]
+                    toa_do_duong_di.extend([(nut_v['y'], nut_v['x'])])
 
-            color = "orange" if "DFS" in algo else ("purple" if "BFS" in algo else "#3498DB")
-            AntPath(route_coords, color=color, weight=6, opacity=0.8, delay=1000).add_to(m)
+            # Màu sắc theo thuật toán
+            mau_sac = "orange" if "DFS" in thuat_toan_tim_duong else (
+                "purple" if "BFS" in thuat_toan_tim_duong else "#3498DB")
 
-            folium.PolyLine([valid_locs[start], route_coords[0]], color="gray", weight=2, dash_array='5, 5').add_to(m)
-            folium.PolyLine([valid_locs[end], route_coords[-1]], color="gray", weight=2, dash_array='5, 5').add_to(m)
+            # Vẽ AntPath
+            AntPath(toa_do_duong_di, color=mau_sac, weight=6, opacity=0.8, delay=1000).add_to(m)
+
+            # Vẽ nét đứt nối vào
+            folium.PolyLine([dia_diem_hop_le[diem_bat_dau], toa_do_duong_di[0]], color="gray", weight=2,
+                            dash_array='5, 5').add_to(m)
+            folium.PolyLine([dia_diem_hop_le[diem_ket_thuc], toa_do_duong_di[-1]], color="gray", weight=2,
+                            dash_array='5, 5').add_to(m)
 
             st_folium(m, width=900, height=600)
 
-    # --- HIỂN THỊ MST (PRIM/KRUSKAL) ---
-    elif st.session_state['mst_edges']:
-        m = folium.Map(location=st.session_state['map_center'], zoom_start=14, tiles="cartodbpositron")
+    # --- HIỂN THỊ CÂY KHUNG (PRIM/KRUSKAL) ---
+    elif st.session_state['cay_khung_mst']:
+        m = folium.Map(location=st.session_state['tam_ban_do'], zoom_start=14, tiles="cartodbpositron")
         Fullscreen().add_to(m)
 
-        for edge_coords in st.session_state['mst_edges']:
-            folium.PolyLine(edge_coords, color="#27AE60", weight=3, opacity=0.7).add_to(m)
+        for canh_toa_do in st.session_state['cay_khung_mst']:
+            folium.PolyLine(canh_toa_do, color="#27AE60", weight=3, opacity=0.7).add_to(m)
 
         st_folium(m, width=1200, height=600)
 
-    # --- MẶC ĐỊNH ---
+    # --- MẶC ĐỊNH KHI MỚI VÀO ---
     else:
         m = folium.Map(location=[13.9785, 108.0051], zoom_start=14, tiles="cartodbpositron")
         st_folium(m, width=1200, height=600)
