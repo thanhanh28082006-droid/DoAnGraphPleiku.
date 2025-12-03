@@ -147,7 +147,7 @@ def ve_do_thi_ly_thuyet(do_thi, duong_di=None, danh_sach_canh=None, tieu_de=""):
 # -----------------------------------------------------------------------------
 # GIAO DIỆN CHÍNH CỦA ỨNG DỤNG
 # -----------------------------------------------------------------------------
-st.title("🏙️ HỆ THỐNG DẪN ĐƯỜNG THÔNG MINH TP. PLEIKU")
+st.title("🏙️ ỨNG DỤNG THUẬT TOÁN CHO HỆ THỐNG DẪN ĐƯỜNG TP. PLEIKU")
 
 tab_ly_thuyet, tab_ban_do = st.tabs(["📚 PHẦN 1: LÝ THUYẾT ĐỒ THỊ", "🚀 PHẦN 2: BẢN ĐỒ THỰC TẾ"])
 
@@ -215,7 +215,7 @@ with tab_ly_thuyet:
             st.write("---")
             if st.button("Kiểm tra 2 phía (Bipartite)"):
                 kq = nx.is_bipartite(st.session_state['do_thi'])
-                st.write(f"Kết quả: {'✅ Có' if kq else '❌ Không'}")
+                st.write(f"Kết quả: {'Có' if kq else ' Không'}")
 
         # Cột 2: Thuật toán tìm kiếm
         with c2:
@@ -394,7 +394,7 @@ with tab_ban_do:
     with cot_nut_quy_hoach:
         # Chọn thuật toán quy hoạch
         chon_quy_hoach = st.selectbox("Thuật toán Quy hoạch:", ["Prim", "Kruskal"], label_visibility="collapsed")
-        nut_quy_hoach = st.button(f"🌲 QUY HOẠCH ({chon_quy_hoach.upper()})", use_container_width=True)
+        nut_quy_hoach = st.button(f" QUY HOẠCH ({chon_quy_hoach.upper()})", use_container_width=True)
 
     # --- LOGIC TÌM ĐƯỜNG (A->B) ---
     if nut_tim_duong:
@@ -561,3 +561,4 @@ with tab_ban_do:
     else:
         m = folium.Map(location=[13.9785, 108.0051], zoom_start=14, tiles="cartodbpositron")
         st_folium(m, width=1200, height=600)
+
