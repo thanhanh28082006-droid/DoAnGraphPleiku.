@@ -127,21 +127,24 @@ def lay_thong_tin_lo_trinh(do_thi, danh_sach_nut):
 # HÀM XỬ LÝ 2: VẼ ĐỒ THỊ LÝ THUYẾT (TAB 1)
 # -----------------------------------------------------------------------------
 def ve_do_thi_ly_thuyet(do_thi, duong_di=None, danh_sach_canh=None, tieu_de=""):
+    is_directed = do_thi.is_directed()
+    
     hinh_ve, truc = plt.subplots(figsize=(8, 5))
     try:
         vi_tri = nx.spring_layout(do_thi, seed=42)
+        # Thêm tham số arrows=is_directed
         nx.draw(do_thi, vi_tri, with_labels=True, node_color='#D6EAF8', edge_color='#BDC3C7', node_size=600,
-                font_weight='bold', ax=truc, arrows=True) # Thêm arrows=True để hỗ trợ có hướng
+                font_weight='bold', ax=truc, arrows=is_directed) 
         nhan_canh = nx.get_edge_attributes(do_thi, 'weight')
         nx.draw_networkx_edge_labels(do_thi, vi_tri, edge_labels=nhan_canh, font_size=9, ax=truc)
 
         if duong_di:
             canh_duong_di = list(zip(duong_di, duong_di[1:]))
             nx.draw_networkx_nodes(do_thi, vi_tri, nodelist=duong_di, node_color='#E74C3C', node_size=700, ax=truc)
-            nx.draw_networkx_edges(do_thi, vi_tri, edgelist=canh_duong_di, width=3, edge_color='#E74C3C', ax=truc, arrows=True)
+            nx.draw_networkx_edges(do_thi, vi_tri, edgelist=canh_duong_di, width=3, edge_color='#E74C3C', ax=truc, arrows=is_directed)
 
         if danh_sach_canh:
-            nx.draw_networkx_edges(do_thi, vi_tri, edgelist=danh_sach_canh, width=3, edge_color='#27AE60', ax=truc, arrows=True)
+            nx.draw_networkx_edges(do_thi, vi_tri, edgelist=danh_sach_canh, width=3, edge_color='#27AE60', ax=truc, arrows=is_directed)
     except Exception as e: st.error(f"Lỗi vẽ hình: {e}")
 
     truc.set_title(tieu_de, color="#2C3E50", fontsize=12)
@@ -175,15 +178,18 @@ with tab_ly_thuyet:
                 G_moi = nx.DiGraph() if co_huong else nx.Graph()
                 for dong in du_lieu_nhap.split('\n'):
                     phan = dong.split()
-                    if len(phan) >= 2:
-                        trong_so = int(phan[2]) if len(phan) > 2 else 1
-                        G_moi.add_edge(phan[0], phan[1], weight=trong_so)
+                    if len(phan) >= 2: # Ít nhất phải có 2 đỉnh u, v
+                        u, v = phan[0], phan[1]
+                        # Nếu không nhập trọng số thì mặc định là 1
+                        trong_so = int(phan[2]) if len(phan) > 2 else 1 
+                        G_moi.add_edge(u, v, weight=trong_so)
+                
                 st.session_state['do_thi'] = G_moi
                 st.success("Đã tạo đồ thị thành công!")
-            except:
-                st.error("Lỗi dữ liệu nhập vào! Hãy kiểm tra lại.")
-        
-        st.download_button("💾 Lưu đồ thị (.txt)", du_lieu_nhap, "graph.txt")
+            except ValueError:
+                st.error("Lỗi: Trọng số phải là số nguyên!")
+            except Exception as e:
+                st.error(f"Lỗi dữ liệu: {e}")
 
     with cot_phai:
         if len(st.session_state['do_thi']) > 0:
@@ -195,7 +201,7 @@ with tab_ly_thuyet:
 
         # Cột 1: Biểu diễn (YC 5, 6)
         with c1:
-            st.info("1. Biểu diễn dữ liệu (YC 5,6)")
+            st.info("1. Biểu diễn dữ liệu ")
             dang_xem = st.selectbox("Chọn cách xem:", ["Danh sách kề", "Ma trận kề", "Danh sách cạnh"])
             if dang_xem == "Ma trận kề":
                 df = pd.DataFrame(nx.adjacency_matrix(st.session_state['do_thi']).todense(),
@@ -211,7 +217,7 @@ with tab_ly_thuyet:
 
         # Cột 2: Thuật toán tìm kiếm (YC 3, 4)
         with c2:
-            st.warning("2. Thuật toán Tìm kiếm (YC 3,4)")
+            st.warning("2. Thuật toán Tìm kiếm ")
             nut_bat_dau = st.selectbox("Điểm bắt đầu:", list(st.session_state['do_thi'].nodes()))
             nut_ket_thuc = st.selectbox("Điểm kết thúc:", list(st.session_state['do_thi'].nodes()),
                                         index=len(st.session_state['do_thi'].nodes()) - 1)
@@ -237,19 +243,19 @@ with tab_ly_thuyet:
 
         # Cột 3: Nâng cao (YC 7.1 -> 7.5)
         with c3:
-            st.success("3. Thuật toán Nâng cao (YC 7)")
+            st.success("3. Thuật toán Nâng cao ")
             cot_k1, cot_k2 = st.columns(2)
 
             # 7.1 & 7.2: Cây khung
             with cot_k1:
-                if st.button("7.1 Prim"):
+                if st.button(" Prim"):
                     if not co_huong and nx.is_connected(st.session_state['do_thi']):
                         cay = nx.minimum_spanning_tree(st.session_state['do_thi'], algorithm='prim')
                         ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=list(cay.edges()),
                                             tieu_de=f"Prim MST (W={cay.size(weight='weight')})")
                     else: st.error("Lỗi: Chỉ áp dụng cho đồ thị Vô hướng & Liên thông")
             with cot_k2:
-                if st.button("7.2 Kruskal"):
+                if st.button(" Kruskal"):
                     if not co_huong and nx.is_connected(st.session_state['do_thi']):
                         cay = nx.minimum_spanning_tree(st.session_state['do_thi'], algorithm='kruskal')
                         ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=list(cay.edges()),
@@ -258,20 +264,23 @@ with tab_ly_thuyet:
             
             # 7.3: Ford-Fulkerson (Max Flow)
             if st.button("7.3 Ford-Fulkerson (Max Flow)"):
-                if co_huong:
+                # Thêm kiểm tra loại đồ thị thực tế trong session_state
+                is_directed_actual = st.session_state['do_thi'].is_directed()
+                
+                if is_directed_actual:
                     try:
                         val, flow_dict = nx.maximum_flow(st.session_state['do_thi'], nut_bat_dau, nut_ket_thuc, capacity='weight')
-                        # Vẽ các cạnh có luồng > 0
+                        # ... (phần vẽ code cũ giữ nguyên) ...
                         canh_luong = []
                         for u in flow_dict:
                             for v, f in flow_dict[u].items():
                                 if f > 0: canh_luong.append((u, v))
                         ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=canh_luong, tieu_de=f"Luồng cực đại: {val}")
                     except Exception as e: st.error(f"Lỗi: {e}")
-                else: st.error("Yêu cầu: Đồ thị CÓ HƯỚNG để tính luồng.")
-
+                else:
+                    st.error("Lỗi: Đồ thị hiện tại là VÔ HƯỚNG. Hãy chọn 'Có hướng' và bấm 'Khởi tạo Đồ thị' lại.")
             # 7.4 & 7.5: Chu trình Euler
-            if st.button("7.4 & 7.5 Chu trình Euler"):
+            if st.button(" Chu trình Euler"):
                 try:
                     if nx.is_eulerian(st.session_state['do_thi']):
                         ct = list(nx.eulerian_circuit(st.session_state['do_thi']))
@@ -292,10 +301,9 @@ with tab_ly_thuyet:
 with tab_ban_do:
     # Hàm tải bản đồ (chạy 1 lần rồi lưu cache cho nhanh)
     @st.cache_resource
-    def tai_ban_do_pleiku():
-        # Tải bán kính 4.5km (Tối ưu tốc độ)
-        return ox.graph_from_point((14.0000, 108.0100), dist=4500, network_type='drive')
-
+def tai_ban_do_pleiku():
+    return ox.graph_from_point((13.9800, 108.0000), dist=6000, network_type='drive')
+    
     with st.spinner("Đang tải dữ liệu bản đồ TP. Pleiku (Khoảng 45 giây)..."):
         try:
             Do_thi_Pleiku = tai_ban_do_pleiku()
@@ -304,16 +312,120 @@ with tab_ban_do:
             st.error("Lỗi tải bản đồ, vui lòng thử lại!")
             st.stop()
 
-    # DANH SÁCH ~100 ĐỊA ĐIỂM (Đã chuẩn hóa tọa độ)
+    # DANH SÁCH ~100 ĐỊA ĐIỂM
     ds_dia_diem = {
-        "--- TRUNG TÂM ---": (0, 0), "Quảng trường Đại Đoàn Kết": (13.9785, 108.0051), "Bưu điện Tỉnh": (13.9770, 108.0040), "UBND Tỉnh": (13.9790, 108.0040), "Công an Tỉnh": (13.9780, 108.0020), "Bảo tàng Tỉnh": (13.9780, 108.0055), "Sở Giáo dục": (13.9775, 108.0045), "Nhà Thi đấu Tỉnh": (13.9810, 108.0060),
-        "--- GIAO THÔNG ---": (0, 0), "Sân bay Pleiku": (14.0044, 108.0172), "Bến xe Đức Long": (13.9556, 108.0264), "Ngã 3 Hoa Lư": (13.9850, 108.0050), "Ngã 4 Biển Hồ": (14.0000, 108.0000), "Ngã 3 Phù Đổng": (13.9700, 108.0050), "Vòng xoay HAGL": (13.9760, 108.0030),
-        "--- CHỢ ---": (0, 0), "Chợ Đêm": (13.9745, 108.0068), "Chợ Trung tâm": (13.9750, 108.0080), "Chợ Thống Nhất": (13.9800, 108.0150), "Chợ Phù Đổng": (13.9700, 108.0100), "Chợ Hoa Lư": (13.9850, 108.0050), "Chợ Yên Thế": (13.9900, 108.0300), "Vincom Plaza": (13.9804, 108.0053), "Coop Mart": (13.9818, 108.0064), "Chợ Trà Bá": (13.9600, 108.0250),
-        "--- DU LỊCH ---": (0, 0), "Biển Hồ (Tơ Nưng)": (14.0534, 108.0035), "Biển Hồ Chè": (14.0200, 108.0100), "Công viên Diên Hồng": (13.9715, 108.0022), "Công viên Đồng Xanh": (13.9800, 108.0500), "Sân vận động Pleiku": (13.9791, 108.0076), "Rạp Touch Cinema": (13.9700, 108.0100), "Núi Hàm Rồng": (13.8900, 108.0500), "Học viện Bóng đá HAGL": (13.9500, 108.0500), "Làng Văn hóa Plei Ốp": (13.9820, 108.0080),
-        "--- TÔN GIÁO ---": (0, 0), "Chùa Minh Thành": (13.9680, 108.0100), "Chùa Bửu Minh": (14.0200, 108.0100), "Chùa Bửu Nghiêm": (13.9750, 108.0020), "Nhà thờ Đức An": (13.9750, 108.0050), "Nhà thờ Thăng Thiên": (13.9850, 108.0050), "Nhà thờ Plei Chuet": (13.9700, 108.0300),
-        "--- Y TẾ ---": (0, 0), "BV Đa khoa Tỉnh": (13.9822, 108.0019), "BV ĐH Y Dược HAGL": (13.9700, 108.0000), "BV Nhi Gia Lai": (13.9600, 108.0100), "BV Mắt Cao Nguyên": (13.9650, 108.0150), "BV 331": (13.9900, 108.0200), "BV TP Pleiku": (13.9780, 108.0150),
-        "--- GIÁO DỤC ---": (0, 0), "THPT Chuyên Hùng Vương": (13.9850, 108.0100), "THPT Pleiku": (13.9800, 108.0120), "THPT Phan Bội Châu": (13.9750, 108.0200), "THPT Lê Lợi": (13.9700, 108.0150), "THPT Hoàng Hoa Thám": (13.9900, 108.0100), "CĐ Sư phạm Gia Lai": (13.9600, 108.0200), "Phân hiệu ĐH Nông Lâm": (13.9550, 108.0300), "Trường Quốc tế UKA": (13.9850, 108.0200),
-        "--- KHÁCH SẠN ---": (0, 0), "KS Hoàng Anh Gia Lai": (13.9760, 108.0030), "KS Tre Xanh": (13.9790, 108.0060), "KS Khánh Linh": (13.9780, 108.0050), "KS Mê Kông": (13.9750, 108.0020), "KS Boston": (13.9720, 108.0050), "KS Pleiku & Em": (13.9770, 108.0080)
+        # --- TRUNG TÂM HÀNH CHÍNH ---
+        "--- HÀNH CHÍNH ---": (0, 0),
+        "Quảng trường Đại Đoàn Kết": (13.9786, 108.0048),
+        "UBND Tỉnh Gia Lai": (13.9792, 108.0039),
+        "Bưu điện Tỉnh": (13.9772, 108.0041),
+        "Công an Tỉnh Gia Lai": (13.9778, 108.0025),
+        "Bảo tàng Tỉnh Gia Lai": (13.9781, 108.0056),
+        "Sở Giáo dục & Đào tạo": (13.9776, 108.0048),
+        "Tỉnh ủy Gia Lai": (13.9805, 108.0045),
+        "Sở Y Tế Gia Lai": (13.9765, 108.0035),
+        "Nhà Thi đấu Tỉnh": (13.9812, 108.0065),
+        "Điện lực Gia Lai": (13.9755, 108.0040),
+        "Trung tâm Văn hóa Thanh Thiếu Nhi": (13.9760, 108.0060),
+
+        # --- GIAO THÔNG ---
+        "--- GIAO THÔNG ---": (0, 0),
+        "Sân bay Pleiku": (14.0050, 108.0180),
+        "Bến xe Đức Long": (13.9556, 108.0264),
+        "Ngã 3 Hoa Lư": (13.9855, 108.0052),
+        "Ngã 4 Biển Hồ": (14.0010, 108.0005),
+        "Ngã 3 Phù Đổng": (13.9705, 108.0055),
+        "Vòng xoay HAGL": (13.9762, 108.0032),
+        "Ngã 3 Diệp Kính": (13.9750, 108.0010),
+        "Cầu Phan Đình Phùng": (13.9680, 107.9980),
+        "Ngã 4 Lâm Nghiệp": (13.9650, 108.0200),
+
+        # --- CHỢ & MUA SẮM ---
+        "--- MUA SẮM ---": (0, 0),
+        "Chợ Đêm Pleiku": (13.9745, 108.0068),
+        "Trung tâm Thương mại Pleiku": (13.9752, 108.0082),
+        "Chợ Thống Nhất": (13.9805, 108.0155),
+        "Chợ Phù Đổng": (13.9705, 108.0105),
+        "Chợ Hoa Lư": (13.9855, 108.0055),
+        "Chợ Yên Thế": (13.9920, 108.0310),
+        "Vincom Plaza Pleiku": (13.9804, 108.0053),
+        "Coop Mart Pleiku": (13.9818, 108.0064),
+        "Chợ Trà Bá": (13.9605, 108.0255),
+        "Siêu thị Nguyễn Kim": (13.9720, 108.0060),
+        "Thế Giới Di Động (Hùng Vương)": (13.9760, 108.0045),
+
+        # --- DU LỊCH & GIẢI TRÍ ---
+        "--- DU LỊCH ---": (0, 0),
+        "Biển Hồ (Tơ Nưng)": (14.0450, 108.0020),
+        "Biển Hồ Chè": (14.0250, 108.0150),
+        "Công viên Diên Hồng": (13.9715, 108.0022),
+        "Công viên Đồng Xanh": (13.9805, 108.0550),
+        "Sân vận động Pleiku": (13.9791, 108.0076),
+        "Rạp Touch Cinema": (13.9702, 108.0102),
+        "Học viện Bóng đá HAGL": (13.9450, 108.0520),
+        "Làng Văn hóa Plei Ốp": (13.9825, 108.0085),
+        "Quảng trường Sư đoàn 320": (13.9950, 108.0100),
+        "Khu du lịch Về Nguồn": (13.9500, 108.0400),
+
+        # --- TÔN GIÁO ---
+        "--- TÔN GIÁO ---": (0, 0),
+        "Chùa Minh Thành": (13.9685, 108.0105),
+        "Chùa Bửu Minh": (14.0220, 108.0120),
+        "Chùa Bửu Nghiêm": (13.9755, 108.0025),
+        "Nhà thờ Đức An": (13.9752, 108.0052),
+        "Nhà thờ Thăng Thiên": (13.9855, 108.0055),
+        "Nhà thờ Plei Chuet": (13.9705, 108.0305),
+        "Tòa Giám mục Kon Tum (VP Pleiku)": (13.9730, 108.0040),
+        "Tịnh Xá Ngọc Phúc": (13.9650, 108.0150),
+
+        # --- Y TẾ ---
+        "--- Y TẾ ---": (0, 0),
+        "BV Đa khoa Tỉnh Gia Lai": (13.9822, 108.0019),
+        "BV ĐH Y Dược HAGL": (13.9710, 108.0005),
+        "BV Nhi Gia Lai": (13.9605, 108.0105),
+        "BV Mắt Cao Nguyên": (13.9655, 108.0155),
+        "BV Quân Y 211": (13.9880, 108.0050),
+        "BV TP Pleiku": (13.9785, 108.0155),
+        "Trung tâm Y tế Dự phòng": (13.9740, 108.0030),
+
+        # --- GIÁO DỤC ---
+        "--- GIÁO DỤC ---": (0, 0),
+        "THPT Chuyên Hùng Vương": (13.9855, 108.0105),
+        "THPT Pleiku": (13.9805, 108.0125),
+        "THPT Phan Bội Châu": (13.9755, 108.0205),
+        "THPT Lê Lợi": (13.9705, 108.0155),
+        "THPT Hoàng Hoa Thám": (13.9905, 108.0105),
+        "CĐ Sư phạm Gia Lai": (13.9605, 108.0205),
+        "Phân hiệu ĐH Nông Lâm": (13.9555, 108.0305),
+        "Trường Quốc tế UKA": (13.9855, 108.0205),
+        "THCS Nguyễn Du": (13.9760, 108.0020),
+        "THCS Phạm Hồng Thái": (13.9720, 108.0080),
+
+        # --- KHÁCH SẠN ---
+        "--- KHÁCH SẠN ---": (0, 0),
+        "KS Hoàng Anh Gia Lai": (13.9762, 108.0032),
+        "KS Tre Xanh": (13.9790, 108.0060),
+        "KS Khánh Linh": (13.9780, 108.0050),
+        "KS Mê Kông": (13.9750, 108.0020),
+        "KS Boston": (13.9720, 108.0050),
+        "KS Pleiku & Em": (13.9770, 108.0080),
+        "KS Elegant": (13.9740, 108.0035),
+        
+        # --- CÀ PHÊ & ẨM THỰC (MỚI) ---
+        "--- CÀ PHÊ & FOOD ---": (0, 0),
+        "Cà phê Trung Nguyên (Hai Bà Trưng)": (13.9785, 108.0060),
+        "Java Coffee": (13.9750, 108.0040),
+        "Hani Kafe & Kitchen": (13.9680, 108.0120),
+        "Phở Khô Ngọc Sơn": (13.9765, 108.0055),
+        "Gà nướng Plei Tiêng": (13.9900, 107.9900),
+        "Cơm lam Gà nướng (Hẻm 172)": (13.9850, 108.0200),
+        
+        # --- NGÂN HÀNG (MỚI) ---
+        "--- NGÂN HÀNG ---": (0, 0),
+        "Vietcombank Gia Lai": (13.9765, 108.0035),
+        "BIDV Nam Gia Lai": (13.9720, 108.0055),
+        "Agribank Tỉnh": (13.9775, 108.0030),
+        "MB Bank Gia Lai": (13.9780, 108.0070)
     }
 
     # Lọc bỏ các dòng tiêu đề (có tọa độ 0,0)
@@ -323,7 +435,7 @@ with tab_ban_do:
     diem_bat_dau = c_di.selectbox("📍 Điểm xuất phát:", list(dia_diem_hop_le.keys()), index=1)
     diem_ket_thuc = c_den.selectbox("🏁 Điểm đến:", list(dia_diem_hop_le.keys()), index=8)
     thuat_toan_tim_duong = c_thuat_toan.selectbox("Thuật toán:",
-                                                    ["Dijkstra (Tối ưu)", "BFS (Ít rẽ)", "DFS (Minh họa)"])
+                                                    ["Dijkstra", "BFS", "DFS"])
 
     st.divider()  # Kẻ ngang phân cách
 
@@ -355,8 +467,11 @@ with tab_ban_do:
                 duong_di = nx.shortest_path(Do_thi_Pleiku, nut_goc, nut_dich, weight=None)
             elif "DFS" in thuat_toan_tim_duong:
                 try:
-                    duong_di = next(nx.all_simple_paths(Do_thi_Pleiku, nut_goc, nut_dich, cutoff=150))
-                except:
+                    duong_di = next(nx.all_simple_paths(Do_thi_Pleiku, nut_goc, nut_dich, cutoff=30))
+                except StopIteration:
+                    st.warning("DFS không tìm thấy đường trong giới hạn độ sâu (cutoff=30). Đã chuyển sang BFS.")
+                    duong_di = nx.shortest_path(Do_thi_Pleiku, nut_goc, nut_dich, weight=None)
+                except Exception:
                     duong_di = []
 
             st.session_state['lo_trinh_tim_duoc'] = duong_di
@@ -369,35 +484,28 @@ with tab_ban_do:
 
     # --- LOGIC QUY HOẠCH (PRIM/KRUSKAL) ---
     if nut_quy_hoach:
-        st.session_state['lo_trinh_tim_duoc'] = []  # Xóa đường đi cũ
+        st.session_state['lo_trinh_tim_duoc'] = []  
         try:
-            with st.spinner(f"Đang chạy thuật toán {chon_quy_hoach} để nối mạng lưới trung tâm..."):
-                # Lấy đồ thị con (Bán kính 2km) để chạy nhanh
+            with st.spinner(f"Đang chạy thuật toán {chon_quy_hoach} (Bán kính 2km)..."):
                 nut_trung_tam = ox.distance.nearest_nodes(Do_thi_Pleiku, 108.0051, 13.9785)
                 do_thi_con = nx.ego_graph(Do_thi_Pleiku, nut_trung_tam, radius=2000, distance='length')
-
-                # Chạy thuật toán
+                G_vo_huong = do_thi_con.to_undirected()
                 khoa_thuat_toan = 'prim' if chon_quy_hoach == 'Prim' else 'kruskal'
-                cay_khung = nx.minimum_spanning_tree(do_thi_con.to_undirected(), weight='length',
-                                                     algorithm=khoa_thuat_toan)
+                cay_khung = nx.minimum_spanning_tree(G_vo_huong, weight='length', algorithm=khoa_thuat_toan)
 
                 danh_sach_toa_do_canh = []
                 for u, v, data in cay_khung.edges(data=True):
-                    # Lấy dữ liệu hình học an toàn
-                    if 'geometry' in data:
-                        xs, ys = data['geometry'].xy
-                        danh_sach_toa_do_canh.append(list(zip(ys, xs)))
-                    else:
-                        u_node, v_node = Do_thi_Pleiku.nodes[u], Do_thi_Pleiku.nodes[v]
-                        danh_sach_toa_do_canh.append([(u_node['y'], u_node['x']), (v_node['y'], v_node['x'])])
+                    # Lấy tọa độ 2 đầu mút (Vẽ đường thẳng để tránh lỗi mất geometry khi to_undirected)
+                    u_node = Do_thi_Pleiku.nodes[u]
+                    v_node = Do_thi_Pleiku.nodes[v]
+                    # Format Folium: (Lat, Lon) -> (y, x)
+                    danh_sach_toa_do_canh.append([(u_node['y'], u_node['x']), (v_node['y'], v_node['x'])])
 
                 st.session_state['cay_khung_mst'] = danh_sach_toa_do_canh
                 st.session_state['tam_ban_do'] = [13.9785, 108.0051]
-                st.success(
-                    f"Đã quy hoạch xong bằng {chon_quy_hoach}! Tổng chiều dài cáp: {cay_khung.size(weight='length') / 1000:.2f} km")
+                st.success(f"Đã quy hoạch xong bằng {chon_quy_hoach}! Tổng chiều dài cáp: {cay_khung.size(weight='length') / 1000:.2f} km")
         except Exception as e:
             st.error(f"Lỗi thuật toán: {e}")
-
     # --- HIỂN THỊ KẾT QUẢ RA MÀN HÌNH ---
     if st.session_state['lo_trinh_tim_duoc']:
         duong_di = st.session_state['lo_trinh_tim_duoc']
@@ -415,44 +523,47 @@ with tab_ban_do:
 
         cot_ban_do, cot_chi_tiet = st.columns([2, 1.2])
 
-        # Cột Phải: Lộ trình chi tiết
+       # Cột Phải: Lộ trình chi tiết (ĐÃ SỬA LỖI CSS)
         with cot_chi_tiet:
             st.markdown("### 📋 Lộ trình chi tiết")
-            with st.container(): # Đã fix lỗi height
-                st.markdown('<div class="khung-lo-trinh">', unsafe_allow_html=True)
-
+            with st.container():
+                # Tạo một chuỗi HTML dài để render 1 lần
+                html_content = '<div class="khung-lo-trinh">'
+                
                 # Điểm đầu
-                st.markdown(f'''
+                html_content += f'''
                 <div class="dong-thoi-gian">
                     <div class="icon-moc" style="background:#D5F5E3; border-color:#2ECC71; color:#27AE60;">A</div>
                     <div class="noi-dung-moc"><span class="ten-duong">Bắt đầu: {diem_bat_dau}</span></div>
-                </div>
-                ''', unsafe_allow_html=True)
+                </div>'''
 
                 # Các đoạn đường
                 for i, buoc in enumerate(chi_tiet):
-                    st.markdown(f'''
+                    html_content += f'''
                     <div class="dong-thoi-gian">
                         <div class="icon-moc">{i + 1}</div>
                         <div class="noi-dung-moc">
                             <span class="the-khoang-cach">{buoc['do_dai']:.0f} m</span>
                             <span class="ten-duong">{buoc['ten']}</span>
                         </div>
-                    </div>
-                    ''', unsafe_allow_html=True)
+                    </div>'''
 
                 # Điểm cuối
-                st.markdown(f'''
+                html_content += f'''
                 <div class="dong-thoi-gian">
                     <div class="icon-moc" style="background:#FADBD8; border-color:#E74C3C; color:#C0392B;">B</div>
                     <div class="noi-dung-moc"><span class="ten-duong">Đích đến: {diem_ket_thuc}</span></div>
-                </div>
-                ''', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                </div>'''
+                
+                html_content += '</div>'
+                
+                # Render toàn bộ HTML 1 lần
+                st.markdown(html_content, unsafe_allow_html=True)
 
         # Cột Trái: Bản đồ
+        # Cột Trái: Bản đồ
         with cot_ban_do:
-            m = folium.Map(location=st.session_state['tam_ban_do'], zoom_start=17, tiles="cartodbpositron")
+            m = folium.Map(location=st.session_state['tam_ban_do'], zoom_start=14, tiles="cartodbpositron")
             Fullscreen().add_to(m)
 
             # Marker điểm đầu cuối
@@ -460,36 +571,37 @@ with tab_ban_do:
                           popup="BẮT ĐẦU").add_to(m)
             folium.Marker(dia_diem_hop_le[diem_ket_thuc], icon=folium.Icon(color="red", icon="flag", prefix='fa'),
                           popup="KẾT THÚC").add_to(m)
-
-            # Vẽ đường cong (Geometry)
             toa_do_duong_di = []
+            
+            # Thêm điểm đầu tiên thủ công
             nut_dau = Do_thi_Pleiku.nodes[duong_di[0]]
             toa_do_duong_di.append((nut_dau['y'], nut_dau['x']))
 
             for u, v in zip(duong_di[:-1], duong_di[1:]):
                 canh = lay_du_lieu_canh_an_toan(Do_thi_Pleiku, u, v)
+                
                 if 'geometry' in canh:
+                    # Geometry chứa cả điểm đầu và cuối. 
+                    # Ta bỏ điểm đầu (xs[0], ys[0]) vì nó trùng với điểm cuối của đoạn trước
                     xs, ys = canh['geometry'].xy
-                    toa_do_duong_di.extend(list(zip(ys, xs)))
+                    points = list(zip(ys, xs))
+                    toa_do_duong_di.extend(points[1:]) # Chỉ lấy từ điểm thứ 2 trở đi
                 else:
+                    # Nếu là đường thẳng, chỉ thêm điểm đích
                     nut_v = Do_thi_Pleiku.nodes[v]
-                    toa_do_duong_di.extend([(nut_v['y'], nut_v['x'])])
+                    toa_do_duong_di.append((nut_v['y'], nut_v['x']))
 
             # Màu sắc theo thuật toán
-            mau_sac = "orange" if "DFS" in thuat_toan_tim_duong else (
-                "purple" if "BFS" in thuat_toan_tim_duong else "#3498DB")
+            mau_sac = "orange" if "DFS" in thuat_toan_tim_duong else ("purple" if "BFS" in thuat_toan_tim_duong else "#3498DB")
 
-            # Vẽ AntPath
+            # Vẽ AntPath (Giờ đây nhẹ hơn và mượt hơn)
             AntPath(toa_do_duong_di, color=mau_sac, weight=6, opacity=0.8, delay=1000).add_to(m)
 
-            # Vẽ nét đứt nối vào
-            folium.PolyLine([dia_diem_hop_le[diem_bat_dau], toa_do_duong_di[0]], color="gray", weight=2,
-                            dash_array='5, 5').add_to(m)
-            folium.PolyLine([dia_diem_hop_le[diem_ket_thuc], toa_do_duong_di[-1]], color="gray", weight=2,
-                            dash_array='5, 5').add_to(m)
+            # Vẽ nét đứt nối từ địa điểm thực tế vào nút giao thông gần nhất
+            folium.PolyLine([dia_diem_hop_le[diem_bat_dau], toa_do_duong_di[0]], color="gray", weight=2, dash_array='5, 5').add_to(m)
+            folium.PolyLine([dia_diem_hop_le[diem_ket_thuc], toa_do_duong_di[-1]], color="gray", weight=2, dash_array='5, 5').add_to(m)
 
             st_folium(m, width=900, height=600)
-
     # --- HIỂN THỊ CÂY KHUNG (PRIM/KRUSKAL) ---
     elif st.session_state['cay_khung_mst']:
         m = folium.Map(location=st.session_state['tam_ban_do'], zoom_start=14, tiles="cartodbpositron")
@@ -504,4 +616,5 @@ with tab_ban_do:
     else:
         m = folium.Map(location=[13.9785, 108.0051], zoom_start=14, tiles="cartodbpositron")
         st_folium(m, width=1200, height=600)
+
 
