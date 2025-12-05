@@ -301,8 +301,8 @@ with tab_ly_thuyet:
 with tab_ban_do:
     # Hàm tải bản đồ (chạy 1 lần rồi lưu cache cho nhanh)
     @st.cache_resource
-def tai_ban_do_pleiku():
-    return ox.graph_from_point((13.9800, 108.0000), dist=6000, network_type='drive')
+    def tai_ban_do_pleiku():
+        return ox.graph_from_point((13.9800, 108.0000), dist=6000, network_type='drive')
     
     with st.spinner("Đang tải dữ liệu bản đồ TP. Pleiku (Khoảng 45 giây)..."):
         try:
@@ -616,5 +616,6 @@ def tai_ban_do_pleiku():
     else:
         m = folium.Map(location=[13.9785, 108.0051], zoom_start=14, tiles="cartodbpositron")
         st_folium(m, width=1200, height=600)
+
 
 
