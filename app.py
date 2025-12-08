@@ -7,6 +7,7 @@ import folium
 from folium.plugins import AntPath, Fullscreen
 from streamlit_folium import st_folium
 import warnings
+import copy
 
 # Tắt các cảnh báo hệ thống để màn hình sạch đẹp
 warnings.filterwarnings("ignore")
@@ -84,11 +85,10 @@ if 'do_thi' not in st.session_state: st.session_state['do_thi'] = nx.Graph()
 if 'lo_trinh_tim_duoc' not in st.session_state: st.session_state['lo_trinh_tim_duoc'] = []
 if 'chi_tiet_lo_trinh' not in st.session_state: st.session_state['chi_tiet_lo_trinh'] = []
 if 'tam_ban_do' not in st.session_state: st.session_state['tam_ban_do'] = [13.9785, 108.0051]
-if 'cay_khung_mst' not in st.session_state: st.session_state['cay_khung_mst'] = []  # Lưu kết quả Prim/Kruskal
 
 
 # -----------------------------------------------------------------------------
-# HÀM XỬ LÝ 1: TRÍCH XUẤT THÔNG TIN LỘ TRÌNH (AN TOÀN HƠN)
+# HÀM XỬ LÝ 1: TRÍCH XUẤT THÔNG TIN LỘ TRÌNH
 # -----------------------------------------------------------------------------
 def lay_du_lieu_canh_an_toan(G, u, v, khoa_trong_so='length'):
     """Lấy dữ liệu cạnh an toàn cho cả Graph thường và MultiGraph"""
@@ -150,6 +150,79 @@ def ve_do_thi_ly_thuyet(do_thi, duong_di=None, danh_sach_canh=None, tieu_de=""):
     truc.set_title(tieu_de, color="#2C3E50", fontsize=12)
     st.pyplot(hinh_ve)
 
+# -----------------------------------------------------------------------------
+# HÀM XỬ LÝ 3: THUẬT TOÁN FLEURY
+# -----------------------------------------------------------------------------
+def thuat_toan_fleury(G_input):
+    """
+    Cài đặt thuật toán Fleury:
+    - Tìm đường đi Euler (nếu có 0 hoặc 2 đỉnh bậc lẻ)
+    - Nguyên tắc: Không đi qua CẦU (Bridge) trừ khi không còn đường nào khác.
+    """
+    # Copy
+    G = G_input.copy()
+    
+    # Kiểm tra điều kiện Euler
+    bac_le = [v for v, d in G.degree() if d % 2 == 1]
+    if len(bac_le) not in [0, 2]:
+        return None, "Đồ thị không có Đường đi/Chu trình Euler (Số đỉnh bậc lẻ phải là 0 hoặc 2)."
+    
+    # Chọn đỉnh bắt đầu: Nếu có bậc lẻ thì bắt đầu từ đó, không thì bắt đầu bất kỳ
+    u = bac_le[0] if len(bac_le) == 2 else list(G.nodes())[0]
+    
+    path = [u]
+    edges_path = []
+    
+    # Chạy cho đến khi hết cạnh
+    while G.number_of_edges() > 0:
+        neighbors = list(G.neighbors(u))
+        
+        # Tìm cạnh tiếp theo
+        next_v = None
+        
+        # Ưu tiên 1: Cạnh không phải là CẦU
+        for v in neighbors:
+            if G.degree(u) == 1: # Nếu chỉ còn 1 cạnh thì bắt buộc phải đi
+                next_v = v
+                break
+            
+            # Kiểm tra xem cạnh (u, v) có phải là cầu không
+            G.remove_edge(u, v)
+            if nx.is_connected(G): # Nếu vẫn liên thông -> Không phải cầu -> Chọn luôn
+                next_v = v
+                break
+            else:
+                # Nếu ngắt liên thông -> Là cầu -> Trả lại cạnh, thử cạnh khác
+                G.add_edge(u, v, weight=1) # (Weight tượng trưng)
+        
+        # Nếu tất cả đều là cầu (hoặc chỉ còn 1 lựa chọn) -> Chọn đại cái cuối cùng
+        if next_v is None:
+            next_v = neighbors[0]
+            G.remove_edge(u, next_v) # Xóa thật
+            
+        # Lưu kết quả
+        edges_path.append((u, next_v))
+        path.append(next_v)
+        u = next_v
+        
+    return edges_path, "Thành công"
+
+# -----------------------------------------------------------------------------
+# HÀM HỖ TRỢ: VẼ CÁC NÚT
+# -----------------------------------------------------------------------------
+def them_cac_nut_len_ban_do(ban_do, do_thi):
+    # Vẽ các chấm tròn màu xám (Nodes)
+    for node, data in do_thi.nodes(data=True):
+        folium.CircleMarker(
+            location=[data['y'], data['x']],
+            radius=1.5,          # Kích thước chấm nhỏ
+            color="gray",        # Viền xám
+            fill=True,
+            fill_color="#555",   # Màu bên trong xám đậm
+            fill_opacity=0.6,
+            weight=0.5,
+            popup=f"Node ID: {node}"
+        ).add_to(ban_do)
 
 # -----------------------------------------------------------------------------
 # GIAO DIỆN CHÍNH CỦA ỨNG DỤNG
@@ -159,7 +232,7 @@ st.title("🏙️ ỨNG DỤNG THUẬT TOÁN CHO HỆ THỐNG DẪN ĐƯỜNG TP
 tab_ly_thuyet, tab_ban_do = st.tabs(["📚 PHẦN 1: LÝ THUYẾT ĐỒ THỊ", "🚀 PHẦN 2: BẢN ĐỒ THỰC TẾ"])
 
 # =============================================================================
-# TAB 1: LÝ THUYẾT (CƠ BẢN & NÂNG CAO - ĐỦ 7.1 -> 7.5)
+# TAB 1: LÝ THUYẾT (CƠ BẢN & NÂNG CAO 7.1 -> 7.5)
 # =============================================================================
 with tab_ly_thuyet:
     cot_trai, cot_phai = st.columns([1, 1.5])
@@ -173,23 +246,35 @@ with tab_ly_thuyet:
         mac_dinh = "A B 4\nA C 2\nB C 5\nB D 10\nC E 3\nD F 11\nE D 4\nC D 1"
         du_lieu_nhap = st.text_area("Nhập danh sách cạnh (u v w):", mac_dinh, height=150)
 
-        if st.button("🚀 Khởi tạo Đồ thị"):
-            try:
-                G_moi = nx.DiGraph() if co_huong else nx.Graph()
-                for dong in du_lieu_nhap.split('\n'):
-                    phan = dong.split()
-                    if len(phan) >= 2: # Ít nhất phải có 2 đỉnh u, v
-                        u, v = phan[0], phan[1]
-                        # Nếu không nhập trọng số thì mặc định là 1
-                        trong_so = int(phan[2]) if len(phan) > 2 else 1 
-                        G_moi.add_edge(u, v, weight=trong_so)
-                
-                st.session_state['do_thi'] = G_moi
-                st.success("Đã tạo đồ thị thành công!")
-            except ValueError:
-                st.error("Lỗi: Trọng số phải là số nguyên!")
-            except Exception as e:
-                st.error(f"Lỗi dữ liệu: {e}")
+        c_nut_tao, c_nut_luu = st.columns([1, 1])
+        with c_nut_tao:
+            if st.button("🚀 Khởi tạo", use_container_width=True):
+                try:
+                    G_moi = nx.DiGraph() if co_huong else nx.Graph()
+                    for dong in du_lieu_nhap.split('\n'):
+                        phan = dong.split()
+                        if len(phan) >= 2: # Ít nhất phải có 2 đỉnh u, v
+                            u, v = phan[0], phan[1]
+                            # Nếu không nhập trọng số thì mặc định là 1
+                            trong_so = int(phan[2]) if len(phan) > 2 else 1 
+                            G_moi.add_edge(u, v, weight=trong_so)
+                    
+                    st.session_state['do_thi'] = G_moi
+                    st.success("Tạo thành công!")
+                except ValueError:
+                    st.error("Lỗi: Trọng số phải là số nguyên!")
+                except Exception as e:
+                    st.error(f"Lỗi dữ liệu: {e}")
+        
+        # --- THÊM NÚT LƯU ĐỒ THỊ VÀO PHẦN 1 ---
+        with c_nut_luu:
+            st.download_button(
+                label="💾 Lưu đồ thị (.txt)",
+                data=du_lieu_nhap,
+                file_name="graph_data.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
 
     with cot_phai:
         if len(st.session_state['do_thi']) > 0:
@@ -220,7 +305,7 @@ with tab_ly_thuyet:
             st.warning("2. Thuật toán Tìm kiếm ")
             nut_bat_dau = st.selectbox("Điểm bắt đầu:", list(st.session_state['do_thi'].nodes()))
             nut_ket_thuc = st.selectbox("Điểm kết thúc:", list(st.session_state['do_thi'].nodes()),
-                                        index=len(st.session_state['do_thi'].nodes()) - 1)
+                                                  index=len(st.session_state['do_thi'].nodes()) - 1)
             
             c2a, c2b = st.columns(2)
             with c2a:
@@ -246,7 +331,7 @@ with tab_ly_thuyet:
             st.success("3. Thuật toán Nâng cao ")
             cot_k1, cot_k2 = st.columns(2)
 
-            # 7.1 & 7.2: Cây khung
+            # 7.1 & 7.2: Cây khung (Giữ nguyên)
             with cot_k1:
                 if st.button(" Prim"):
                     if not co_huong and nx.is_connected(st.session_state['do_thi']):
@@ -263,14 +348,11 @@ with tab_ly_thuyet:
                     else: st.error("Lỗi: Chỉ áp dụng cho đồ thị Vô hướng & Liên thông")
             
             # 7.3: Ford-Fulkerson (Max Flow)
-            if st.button("7.3 Ford-Fulkerson (Max Flow)"):
-                # Thêm kiểm tra loại đồ thị thực tế trong session_state
+            if st.button(" Ford-Fulkerson (Max Flow)"):
                 is_directed_actual = st.session_state['do_thi'].is_directed()
-                
                 if is_directed_actual:
                     try:
                         val, flow_dict = nx.maximum_flow(st.session_state['do_thi'], nut_bat_dau, nut_ket_thuc, capacity='weight')
-                        # ... (phần vẽ code cũ giữ nguyên) ...
                         canh_luong = []
                         for u in flow_dict:
                             for v, f in flow_dict[u].items():
@@ -279,21 +361,39 @@ with tab_ly_thuyet:
                     except Exception as e: st.error(f"Lỗi: {e}")
                 else:
                     st.error("Lỗi: Đồ thị hiện tại là VÔ HƯỚNG. Hãy chọn 'Có hướng' và bấm 'Khởi tạo Đồ thị' lại.")
-            # 7.4 & 7.5: Chu trình Euler
-            if st.button(" Chu trình Euler"):
-                try:
-                    if nx.is_eulerian(st.session_state['do_thi']):
-                        ct = list(nx.eulerian_circuit(st.session_state['do_thi']))
-                        ds_canh = [(u,v) for u,v in ct]
-                        st.info(f"Chu trình: {ds_canh}")
-                        ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=ds_canh, tieu_de="Chu trình Euler")
-                    elif nx.has_eulerian_path(st.session_state['do_thi']):
-                        dp = list(nx.eulerian_path(st.session_state['do_thi']))
-                        ds_canh = [(u,v) for u,v in dp]
-                        st.info(f"Đường đi: {ds_canh}")
-                        ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=ds_canh, tieu_de="Đường đi Euler")
-                    else: st.error("Không có chu trình/đường đi Euler (Bậc đỉnh không thỏa mãn).")
-                except Exception as e: st.error(f"Lỗi: {e}")
+            
+            st.divider()
+            col_fleury, col_hierholzer = st.columns(2)
+
+            # 7.4 FLEURY
+            with col_fleury:
+                if st.button("Fleury"):
+                    if st.session_state['do_thi'].is_directed():
+                        st.error("Fleury cơ bản chỉ áp dụng cho VÔ HƯỚNG để minh họa rõ nhất việc 'né cầu'.")
+                    elif not nx.is_connected(st.session_state['do_thi']):
+                        st.error("Đồ thị phải liên thông!")
+                    else:
+                        with st.spinner("Đang chạy Fleury (Né cầu)..."):
+                            ds_canh, msg = thuat_toan_fleury(st.session_state['do_thi'])
+                            if ds_canh:
+                                st.info(f"Kết quả Fleury: {ds_canh}")
+                                ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=ds_canh, tieu_de="Fleury (Né Cầu)")
+                            else:
+                                st.error(msg)
+            
+            # 7.5 HIERHOLZER
+            with col_hierholzer:
+                if st.button("Hierholzer"):
+                    try:
+                        if nx.is_eulerian(st.session_state['do_thi']):
+                            # NetworkX eulerian_circuit dùng Hierholzer hoặc thuật toán tuyến tính tương đương
+                            ct = list(nx.eulerian_circuit(st.session_state['do_thi']))
+                            ds_canh = [(u,v) for u,v in ct]
+                            st.success(f"Chu trình Euler (Hierholzer): {ds_canh}")
+                            ve_do_thi_ly_thuyet(st.session_state['do_thi'], danh_sach_canh=ds_canh, tieu_de="Hierholzer Circuit")
+                        else:
+                            st.warning("Hierholzer chỉ tìm CHU TRÌNH (Circuit). Đồ thị này không có chu trình Euler (bậc các đỉnh không đều chẵn).")
+                    except Exception as e: st.error(f"Lỗi: {e}")
 
 # =============================================================================
 # TAB 2: BẢN ĐỒ PLEIKU (100 ĐỊA ĐIỂM)
@@ -302,6 +402,7 @@ with tab_ban_do:
     # Hàm tải bản đồ (chạy 1 lần rồi lưu cache cho nhanh)
     @st.cache_resource
     def tai_ban_do_pleiku():
+        # Giữ nguyên bán kính 6km để lấy đủ dữ liệu
         return ox.graph_from_point((13.9800, 108.0000), dist=6000, network_type='drive')
     
     with st.spinner("Đang tải dữ liệu bản đồ TP. Pleiku (Khoảng 45 giây)..."):
@@ -439,20 +540,11 @@ with tab_ban_do:
 
     st.divider()  # Kẻ ngang phân cách
 
-    # CHIA LÀM 2 CỘT NÚT BẤM
-    cot_nut_tim, cot_nut_quy_hoach = st.columns([1, 1])
-
-    with cot_nut_tim:
-        nut_tim_duong = st.button("🚀 TÌM ĐƯỜNG NGAY", type="primary", use_container_width=True)
-
-    with cot_nut_quy_hoach:
-        # Chọn thuật toán quy hoạch
-        chon_quy_hoach = st.selectbox("Thuật toán Quy hoạch:", ["Prim", "Kruskal"], label_visibility="collapsed")
-        nut_quy_hoach = st.button(f"🌲 QUY HOẠCH ({chon_quy_hoach.upper()})", use_container_width=True)
+    # --- NÚT TÌM ĐƯỜNG ---
+    nut_tim_duong = st.button("🚀 TÌM ĐƯỜNG NGAY", type="primary", use_container_width=True)
 
     # --- LOGIC TÌM ĐƯỜNG (A->B) ---
     if nut_tim_duong:
-        st.session_state['cay_khung_mst'] = []  # Xóa kết quả Quy hoạch cũ
         try:
             # Tìm tọa độ
             u_coord, v_coord = dia_diem_hop_le[diem_bat_dau], dia_diem_hop_le[diem_ket_thuc]
@@ -482,30 +574,6 @@ with tab_ban_do:
         except Exception as e:
             st.error(f"Không tìm thấy đường đi: {e}")
 
-    # --- LOGIC QUY HOẠCH (PRIM/KRUSKAL) ---
-    if nut_quy_hoach:
-        st.session_state['lo_trinh_tim_duoc'] = []  
-        try:
-            with st.spinner(f"Đang chạy thuật toán {chon_quy_hoach} (Bán kính 2km)..."):
-                nut_trung_tam = ox.distance.nearest_nodes(Do_thi_Pleiku, 108.0051, 13.9785)
-                do_thi_con = nx.ego_graph(Do_thi_Pleiku, nut_trung_tam, radius=2000, distance='length')
-                G_vo_huong = do_thi_con.to_undirected()
-                khoa_thuat_toan = 'prim' if chon_quy_hoach == 'Prim' else 'kruskal'
-                cay_khung = nx.minimum_spanning_tree(G_vo_huong, weight='length', algorithm=khoa_thuat_toan)
-
-                danh_sach_toa_do_canh = []
-                for u, v, data in cay_khung.edges(data=True):
-                    # Lấy tọa độ 2 đầu mút (Vẽ đường thẳng để tránh lỗi mất geometry khi to_undirected)
-                    u_node = Do_thi_Pleiku.nodes[u]
-                    v_node = Do_thi_Pleiku.nodes[v]
-                    # Format Folium: (Lat, Lon) -> (y, x)
-                    danh_sach_toa_do_canh.append([(u_node['y'], u_node['x']), (v_node['y'], v_node['x'])])
-
-                st.session_state['cay_khung_mst'] = danh_sach_toa_do_canh
-                st.session_state['tam_ban_do'] = [13.9785, 108.0051]
-                st.success(f"Đã quy hoạch xong bằng {chon_quy_hoach}! Tổng chiều dài cáp: {cay_khung.size(weight='length') / 1000:.2f} km")
-        except Exception as e:
-            st.error(f"Lỗi thuật toán: {e}")
     # --- HIỂN THỊ KẾT QUẢ RA MÀN HÌNH ---
     if st.session_state['lo_trinh_tim_duoc']:
         duong_di = st.session_state['lo_trinh_tim_duoc']
@@ -523,11 +591,10 @@ with tab_ban_do:
 
         cot_ban_do, cot_chi_tiet = st.columns([2, 1.2])
 
-       # Cột Phải: Lộ trình chi tiết (ĐÃ SỬA LỖI CSS)
+       # Cột Phải: Lộ trình chi tiết
         with cot_chi_tiet:
             st.markdown("### 📋 Lộ trình chi tiết")
             with st.container():
-                # Tạo một chuỗi HTML dài để render 1 lần
                 html_content = '<div class="khung-lo-trinh">'
                 
                 # Điểm đầu
@@ -556,14 +623,15 @@ with tab_ban_do:
                 </div>'''
                 
                 html_content += '</div>'
-                
-                # Render toàn bộ HTML 1 lần
                 st.markdown(html_content, unsafe_allow_html=True)
 
         # Cột Trái: Bản đồ
-        # Cột Trái: Bản đồ
         with cot_ban_do:
             m = folium.Map(location=st.session_state['tam_ban_do'], zoom_start=14, tiles="cartodbpositron")
+            
+            # --- VẼ CÁC CHẤM ---
+            them_cac_nut_len_ban_do(m, Do_thi_Pleiku)
+            
             Fullscreen().add_to(m)
 
             # Marker điểm đầu cuối
@@ -581,20 +649,17 @@ with tab_ban_do:
                 canh = lay_du_lieu_canh_an_toan(Do_thi_Pleiku, u, v)
                 
                 if 'geometry' in canh:
-                    # Geometry chứa cả điểm đầu và cuối. 
-                    # Ta bỏ điểm đầu (xs[0], ys[0]) vì nó trùng với điểm cuối của đoạn trước
                     xs, ys = canh['geometry'].xy
                     points = list(zip(ys, xs))
-                    toa_do_duong_di.extend(points[1:]) # Chỉ lấy từ điểm thứ 2 trở đi
+                    toa_do_duong_di.extend(points[1:]) 
                 else:
-                    # Nếu là đường thẳng, chỉ thêm điểm đích
                     nut_v = Do_thi_Pleiku.nodes[v]
                     toa_do_duong_di.append((nut_v['y'], nut_v['x']))
 
             # Màu sắc theo thuật toán
             mau_sac = "orange" if "DFS" in thuat_toan_tim_duong else ("purple" if "BFS" in thuat_toan_tim_duong else "#3498DB")
 
-            # Vẽ AntPath (Giờ đây nhẹ hơn và mượt hơn)
+            # Vẽ AntPath
             AntPath(toa_do_duong_di, color=mau_sac, weight=6, opacity=0.8, delay=1000).add_to(m)
 
             # Vẽ nét đứt nối từ địa điểm thực tế vào nút giao thông gần nhất
@@ -602,20 +667,12 @@ with tab_ban_do:
             folium.PolyLine([dia_diem_hop_le[diem_ket_thuc], toa_do_duong_di[-1]], color="gray", weight=2, dash_array='5, 5').add_to(m)
 
             st_folium(m, width=900, height=600)
-    # --- HIỂN THỊ CÂY KHUNG (PRIM/KRUSKAL) ---
-    elif st.session_state['cay_khung_mst']:
-        m = folium.Map(location=st.session_state['tam_ban_do'], zoom_start=14, tiles="cartodbpositron")
-        Fullscreen().add_to(m)
-
-        for canh_toa_do in st.session_state['cay_khung_mst']:
-            folium.PolyLine(canh_toa_do, color="#27AE60", weight=3, opacity=0.7).add_to(m)
-
-        st_folium(m, width=1200, height=600)
 
     # --- MẶC ĐỊNH KHI MỚI VÀO ---
     else:
         m = folium.Map(location=[13.9785, 108.0051], zoom_start=14, tiles="cartodbpositron")
+        
+        # --- VẼ CÁC CHẤM (NODES) NHƯ YÊU CẦU ---
+        them_cac_nut_len_ban_do(m, Do_thi_Pleiku)
+        
         st_folium(m, width=1200, height=600)
-
-
-
