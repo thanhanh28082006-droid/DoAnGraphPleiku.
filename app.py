@@ -8,7 +8,6 @@ from folium.plugins import AntPath, Fullscreen
 from streamlit_folium import st_folium
 import warnings
 
-# Tắt các cảnh báo hệ thống để màn hình sạch đẹp
 warnings.filterwarnings("ignore")
 
 # -----------------------------------------------------------------------------
@@ -90,7 +89,7 @@ if 'bounds_ban_do' not in st.session_state: st.session_state['bounds_ban_do'] = 
 
 
 # -----------------------------------------------------------------------------
-# HÀM XỬ LÝ 1: TRÍCH XUẤT THÔNG TIN LỘ TRÌNH (AN TOÀN HƠN)
+# HÀM XỬ LÝ 1: TRÍCH XUẤT THÔNG TIN LỘ TRÌNH
 # -----------------------------------------------------------------------------
 def lay_du_lieu_canh_an_toan(G, u, v, khoa_trong_so='length'):
     """Lấy dữ liệu cạnh an toàn cho cả Graph thường và MultiGraph"""
@@ -216,7 +215,7 @@ st.title("🏙️ ỨNG DỤNG THUẬT TOÁN CHO HỆ THỐNG DẪN ĐƯỜNG TP
 tab_ly_thuyet, tab_ban_do = st.tabs(["📚 PHẦN 1: LÝ THUYẾT ĐỒ THỊ", "🚀 PHẦN 2: BẢN ĐỒ THỰC TẾ"])
 
 # =============================================================================
-# TAB 1: LÝ THUYẾT (GIỮ NGUYÊN)
+# TAB 1: LÝ THUYẾT 
 # =============================================================================
 with tab_ly_thuyet:
     cot_trai, cot_phai = st.columns([1, 1.5])
@@ -408,7 +407,7 @@ with tab_ly_thuyet:
                         st.error(f"Lỗi: {e}")
 
 # =============================================================================
-# TAB 2: BẢN ĐỒ PLEIKU (CHẾ ĐỘ TÌM KIẾM THÔNG MINH)
+# TAB 2: BẢN ĐỒ PLEIKU
 # =============================================================================
 with tab_ban_do:
     @st.cache_resource
@@ -425,9 +424,6 @@ with tab_ban_do:
             st.error("Lỗi tải bản đồ, vui lòng thử lại!")
             st.stop()
 
-    # --- KHÔNG DÙNG DANH SÁCH THỦ CÔNG NỮA ---
-    # Thay vào đó là Form nhập liệu tìm kiếm (Geocoding)
-
     st.markdown("### 🔍 Nhập tên địa điểm (Ví dụ: Chợ Pleiku, Sân vận động,...)")
 
     with st.form("form_tim_duong"):
@@ -443,8 +439,6 @@ with tab_ban_do:
     if nut_tim_duong:
         with st.spinner(f"Đang tìm vị trí '{start_query}' và '{end_query}' trên bản đồ..."):
             try:
-                # 1. TÌM TỌA ĐỘ TỪ TÊN (GEOCODING)
-                # Thêm hậu tố Gia Lai, Vietnam để tìm chính xác hơn
                 try:
                     q_start = start_query if "Gia Lai" in start_query else f"{start_query}, Gia Lai, Vietnam"
                     q_end = end_query if "Gia Lai" in end_query else f"{end_query}, Gia Lai, Vietnam"
@@ -455,13 +449,10 @@ with tab_ban_do:
                 except Exception:
                     st.error("❌ Không tìm thấy địa điểm! Hãy thử nhập tên cụ thể hơn.")
                     st.stop()
-
-                # 2. TÌM NODE TRÊN ĐỒ THỊ GẦN NHẤT
-                # Lưu ý: nearest_nodes nhận (G, X=Lon, Y=Lat)
                 nut_goc = ox.distance.nearest_nodes(Do_thi_Pleiku, start_point[1], start_point[0])
                 nut_dich = ox.distance.nearest_nodes(Do_thi_Pleiku, end_point[1], end_point[0])
 
-                # 3. CHẠY THUẬT TOÁN (ĐÃ SỬA LỖI LOGIC KHÔNG TÌM THẤY ĐƯỜNG)
+                # 3. CHẠY THUẬT TOÁN
                 duong_di = []
                 try:
                     if "Dijkstra" in thuat_toan_tim_duong:
@@ -595,4 +586,5 @@ with tab_ban_do:
     else:
         m = folium.Map(location=[13.9785, 108.0051], zoom_start=14, tiles="OpenStreetMap")
         st_folium(m, width=1200, height=600, returned_objects=[])
+
 
