@@ -6,7 +6,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-st.set_page_config(page_title="Graph Theory Master", layout="wide", page_icon="🔮")
+st.set_page_config(page_title="Ứng dụng thuật toán hoàng thanh", layout="wide", page_icon="🔮")
 
 st.markdown("""
     <style>
@@ -257,3 +257,4 @@ with col_data:
         c1, c2 = st.columns(2)
         c1.metric("Số đỉnh", G.number_of_nodes())
         c2.metric("Số cạnh", G.number_of_edges())
+
