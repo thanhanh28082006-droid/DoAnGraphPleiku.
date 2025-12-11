@@ -2,9 +2,4 @@ streamlit
 networkx
 pandas
 matplotlib
-numpy
 scipy
-osmnx
-folium
-streamlit-folium
-scikit-learn
