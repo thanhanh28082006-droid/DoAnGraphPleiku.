@@ -53,7 +53,7 @@ def my_dijkstra(G, start_node, end_node):
     
     while pq:
         d, u = heapq.heappop(pq)
-        if u == end_node: brrồii""
+        if u == end_node:""
                 set_0 = [n for n, c in color_map.items() if c == 0]
                 set_1 = [n for n, c in color_map.items() if c == 1]
                 st.write(f"**Tập U:** {set_0}")
@@ -68,3 +68,4 @@ def my_dijkstra(G, start_node, end_node):
 
 else:
     st.info("👈 Bạn nhập thanh bên trái để bắt đầu nhé .")
+
