@@ -197,7 +197,7 @@ def my_fleury(G):
     if not nx.is_connected(G.to_undirected()): return None, "Đồ thị không liên thông!"
     
     odd_nodes = [v for v, d in G.degree() if d % 2 != 0]
-    if len(odd_nodes) > 2: return None, "Không có đường đi Euler (Quá nhiều đỉnh bậc lẻ)."
+    if len(odd_nodes) > 2: return None, "Không có đường đi Euler."
     
     u = odd_nodes[0] if odd_nodes else list(G.nodes())[0]
     
@@ -293,17 +293,16 @@ with st.sidebar:
                 parts = line.split()
                 if len(parts) >= 2:
                     u, v = parts[0], parts[1]
-                    # Xử lý trọng số dựa trên lựa chọn của người dùng
                     if is_weighted and len(parts) > 2:
                         w = int(parts[2])
                     else:
-                        w = 1 # Mặc định là 1 nếu không có trọng số
+                        w = 1 
                     
                     G.add_edge(u, v, weight=w)
             
             st.session_state['graph'] = G
             st.session_state['input_raw'] = input_text
-            st.session_state['is_weighted'] = is_weighted # Lưu trạng thái để dùng lúc vẽ
+            st.session_state['is_weighted'] = is_weighted 
             st.success("Đã nạp dữ liệu!")
         except ValueError: st.error("Lỗi: Trọng số phải là số nguyên!")
         except Exception as e: st.error(f"Lỗi định dạng: {e}")
@@ -325,14 +324,14 @@ if 'graph' in st.session_state:
         with c1:
             st.subheader("Bảng điều khiển")
             algo = st.selectbox("Chọn thuật toán:", 
-                ["BFS (Duyệt chiều rộng)", 
-                 "DFS (Duyệt chiều sâu)", 
-                 "Dijkstra (Đường đi ngắn nhất)", 
-                 "Prim (MST - Cây khung)", 
-                 "Kruskal (MST - Cây khung)", 
-                 "Ford-Fulkerson (Luồng cực đại)", 
-                 "Hierholzer (Chu trình Euler)",
-                 "Fleury (Đường đi Euler)"])
+                ["BFS", 
+                 "DFS", 
+                 "Dijkstra", 
+                 "Prim", 
+                 "Kruskal", 
+                 "Ford-Fulkerson", 
+                 "Hierholzer",
+                 "Fleury"])
             
             nodes = list(G.nodes())
             start = st.selectbox("Đỉnh bắt đầu:", nodes)
@@ -340,7 +339,7 @@ if 'graph' in st.session_state:
             
             run_btn = st.button("▶️ Chạy mô phỏng", type="primary")
 
-            with st.expander("📚 Kiến thức thuật toán (Cho báo cáo)"):
+            with st.expander("📚 Kiến thức thuật toán"):
                 if "BFS" in algo:
                     st.markdown("**Độ phức tạp:** O(V + E)")
                     st.write("Sử dụng hàng đợi (Queue). Duyệt theo từng lớp lan rộng ra xung quanh.")
@@ -439,27 +438,23 @@ if 'graph' in st.session_state:
         
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.write("###### 1. Danh sách cạnh (Edge List)")
+            st.write("###### 1. Danh sách cạnh ")
             df_edges = nx.to_pandas_edgelist(G)
-            # Ẩn cột weight nếu là không trọng số để đỡ rối mắt
             if not weighted_mode and 'weight' in df_edges.columns:
                 df_edges = df_edges.drop(columns=['weight'])
             st.dataframe(df_edges, hide_index=True, use_container_width=True)
-            st.caption("📝 **Ý nghĩa:** Chỉ lưu trữ các cặp đỉnh nối. Tiết kiệm bộ nhớ nhất (Sparse Graph).")
         with c2:
-            st.write("###### 2. Ma trận kề (Adj Matrix)")
+            st.write("###### 2. Ma trận kề )")
             matrix = nx.adjacency_matrix(G).todense()
             st.dataframe(pd.DataFrame(matrix, index=G.nodes(), columns=G.nodes()), use_container_width=True)
-            st.caption("📝 **Ý nghĩa:** Dùng mảng 2 chiều. Ô [i][j] > 0 tức là có cạnh. Tra cứu cực nhanh O(1).")
         with c3:
-            st.write("###### 3. Danh sách kề (Adj List)")
+            st.write("###### 3. Danh sách kề ")
             adj_dict = {n: list(G.neighbors(n)) for n in G.nodes()}
             st.json(adj_dict)
-            st.caption("📝 **Ý nghĩa:** Mỗi đỉnh lưu danh sách các hàng xóm. Cân bằng giữa tốc độ và bộ nhớ.")
 
     # TAB 3: KIỂM TRA TÍNH CHẤT
     with tab3:
-        st.subheader("Kiểm tra Đồ thị 2 phía (Bipartite)")
+        st.subheader("Kiểm tra Đồ thị 2 phía ")
         is_bi, color_map = check_bipartite_manual(G)
         
         c1, c2 = st.columns([1, 2])
@@ -472,7 +467,6 @@ if 'graph' in st.session_state:
                 st.write(f"**Tập V:** {set_1}")
             else:
                 st.error("❌ KHÔNG PHẢI đồ thị 2 phía")
-                st.write("Nguyên nhân: Tồn tại chu trình lẻ hoặc cạnh nối 2 đỉnh cùng màu.")
         with c2:
             if is_bi:
                 fig_bi = ve_do_thi(G, title="Phân lớp 2 phía (Đỏ - Xanh)", color_map=color_map, show_weights=weighted_mode)
@@ -480,3 +474,4 @@ if 'graph' in st.session_state:
 
 else:
     st.info("👈Bạn nhập thanh dữ liệu bên trái để bắt đầu nhé .")
+
