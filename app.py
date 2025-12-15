@@ -444,7 +444,7 @@ if 'graph' in st.session_state:
                 df_edges = df_edges.drop(columns=['weight'])
             st.dataframe(df_edges, hide_index=True, use_container_width=True)
         with c2:
-            st.write("###### 2. Ma trận kề )")
+            st.write("###### 2. Ma trận kề ")
             matrix = nx.adjacency_matrix(G).todense()
             st.dataframe(pd.DataFrame(matrix, index=G.nodes(), columns=G.nodes()), use_container_width=True)
         with c3:
@@ -474,4 +474,5 @@ if 'graph' in st.session_state:
 
 else:
     st.info("👈Bạn nhập thanh dữ liệu bên trái để bắt đầu nhé .")
+
 
