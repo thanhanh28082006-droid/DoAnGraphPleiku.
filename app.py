@@ -10,7 +10,6 @@ st.set_page_config(page_title="Đồ án: Ứng dụng thuật toán Đồ thị
 
 
 def my_bfs(G, start_node):
-    """BFS dùng NetworkX"""
     edges = list(nx.bfs_edges(G, source=start_node))
     path_order = [start_node] + [v for u, v in edges]
     
@@ -19,7 +18,6 @@ def my_bfs(G, start_node):
 def my_dfs(G, start_node):
     edges = list(nx.dfs_edges(G, source=start_node))
     
-    # Lấy thứ tự đỉnh
     path_order = list(nx.dfs_preorder_nodes(G, source=start_node))
     
     return edges, path_order
@@ -27,7 +25,6 @@ def my_dfs(G, start_node):
 def my_dijkstra(G, start_node, end_node):
     try:
         path = nx.shortest_path(G, source=start_node, target=end_node, weight='weight')
-        # Tính tổng chi phí
         dist = nx.shortest_path_length(G, source=start_node, target=end_node, weight='weight')
         return path, dist
     except nx.NetworkXNoPath:
@@ -37,8 +34,6 @@ def my_prim(G):
     if G.is_directed(): return None, "Prim chỉ dùng cho đồ thị Vô hướng!"
     if not nx.is_connected(G): return None, "Đồ thị không liên thông!"
     
-    # nx.minimum_spanning_tree dùng thuật toán Kruskal hoặc Prim (mặc định Kruskal)
-    # Để ép dùng Prim, ta dùng algorithm='prim'
     T = nx.minimum_spanning_tree(G, weight='weight', algorithm='prim')
     
     mst_edges = list(T.edges(data=False))
@@ -74,7 +69,7 @@ def my_hierholzer(G):
     circuit_edges = list(nx.eulerian_circuit(G))
     
     path = [u for u, v in circuit_edges]
-    path.append(circuit_edges[-1][1]) # Thêm đỉnh cuối cùng
+    path.append(circuit_edges[-1][1]) 
     
     return path, "Thành công"
 
@@ -127,7 +122,6 @@ st.markdown("---")
 with st.sidebar:
     st.header("1. Nhập Dữ Liệu")
     
-    # Thêm tùy chọn Có/Không trọng số
     type_g = st.radio("Hướng đồ thị:", ["Vô hướng", "Có hướng"])
     is_weighted = st.checkbox("Đồ thị có trọng số?", value=True)
     
@@ -214,9 +208,7 @@ if 'graph' in st.session_state:
             fig = None
             msg = ""
             if run_btn:
-                try:
-                    # Truyền tham số show_weights=weighted_mode vào hàm vẽ
-                    
+                try:                    
                     if "BFS" in algo:
                         edges, order = my_bfs(G, start)
                         fig = ve_do_thi(G, highlight_edges=edges, title=f"BFS từ {start}", show_weights=weighted_mode)
@@ -323,4 +315,5 @@ if 'graph' in st.session_state:
 
 else:
     st.info("👈Bạn nhập thanh dữ liệu bên trái để bắt đầu nhé .")
+
 
