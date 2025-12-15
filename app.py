@@ -8,243 +8,127 @@ from io import BytesIO
 st.set_page_config(page_title="Đồ án: Ứng dụng thuật toán Đồ thị", layout="wide", page_icon="🎓")
 
 
+# ==============================================================================
+# PHẦN 1: SỬ DỤNG THƯ VIỆN NETWORKX CHO THUẬT TOÁN
+# ==============================================================================
+
 def my_bfs(G, start_node):
-    visited = set()
-    queue = [start_node]
-    visited.add(start_node)
-    path_order = []
-    edges_path = []
+    """BFS dùng NetworkX"""
+    # nx.bfs_edges trả về các cạnh theo thứ tự duyệt BFS
+    edges = list(nx.bfs_edges(G, source=start_node))
     
-    while queue:
-        u = queue.pop(0)
-        path_order.append(u)
-        neighbors = sorted(list(G.neighbors(u))) 
-        for v in neighbors:
-            if v not in visited:
-                visited.add(v)
-                queue.append(v)
-                edges_path.append((u, v))
-    return edges_path, path_order
+    # Để lấy thứ tự các đỉnh duyệt, ta có thể dùng bfs_tree hoặc duyệt qua edges
+    # Cách đơn giản nhất để lấy list node theo thứ tự:
+    path_order = [start_node] + [v for u, v in edges]
+    
+    return edges, path_order
 
 def my_dfs(G, start_node):
-    visited = set()
-    stack = [start_node]
-    path_order = []
-    edges_path = []
+    """DFS dùng NetworkX"""
+    # nx.dfs_edges trả về các cạnh theo thứ tự duyệt DFS
+    edges = list(nx.dfs_edges(G, source=start_node))
     
-    while stack:
-        u = stack.pop()
-        if u not in visited:
-            visited.add(u)
-            path_order.append(u)
-            neighbors = sorted(list(G.neighbors(u)), reverse=True) 
-            for v in neighbors:
-                if v not in visited:
-                    stack.append(v)
-                    edges_path.append((u, v))
-    return edges_path, path_order
+    # Lấy thứ tự đỉnh
+    path_order = list(nx.dfs_preorder_nodes(G, source=start_node))
+    
+    return edges, path_order
 
 def my_dijkstra(G, start_node, end_node):
-    distances = {node: float('infinity') for node in G.nodes()}
-    distances[start_node] = 0
-    pq = [(0, start_node)]
-    parent = {node: None for node in G.nodes()}
-    
-    while pq:
-        d, u = heapq.heappop(pq)
-        if u == end_node: break
-        if d > distances[u]: continue
-        
-        for v in G.neighbors(u):
-            weight = G[u][v].get('weight', 1)
-            if distances[u] + weight < distances[v]:
-                distances[v] = distances[u] + weight
-                parent[v] = u
-                heapq.heappush(pq, (distances[v], v))
-    
-    path = []
-    curr = end_node
-    if distances[end_node] == float('infinity'): return None, 0
-    while curr is not None:
-        path.insert(0, curr)
-        curr = parent[curr]
-    return path, distances[end_node]
+    """Dijkstra dùng NetworkX"""
+    try:
+        # Tìm đường đi ngắn nhất (trả về danh sách đỉnh)
+        path = nx.shortest_path(G, source=start_node, target=end_node, weight='weight')
+        # Tính tổng chi phí
+        dist = nx.shortest_path_length(G, source=start_node, target=end_node, weight='weight')
+        return path, dist
+    except nx.NetworkXNoPath:
+        return None, 0
 
 def my_prim(G):
+    """Prim MST dùng NetworkX"""
     if G.is_directed(): return None, "Prim chỉ dùng cho đồ thị Vô hướng!"
     if not nx.is_connected(G): return None, "Đồ thị không liên thông!"
     
-    start_node = list(G.nodes())[0]
-    mst_edges = []
-    visited = {start_node}
-    edges_heap = []
+    # nx.minimum_spanning_tree dùng thuật toán Kruskal hoặc Prim (mặc định Kruskal)
+    # Để ép dùng Prim, ta dùng algorithm='prim'
+    T = nx.minimum_spanning_tree(G, weight='weight', algorithm='prim')
     
-    for v in G.neighbors(start_node):
-        w = G[start_node][v].get('weight', 1)
-        heapq.heappush(edges_heap, (w, start_node, v))
-        
-    total_w = 0
-    while len(mst_edges) < len(G.nodes()) - 1 and edges_heap:
-        w, u, v = heapq.heappop(edges_heap)
-        if v not in visited:
-            visited.add(v)
-            mst_edges.append((u, v))
-            total_w += w
-            for next_n in G.neighbors(v):
-                if next_n not in visited:
-                    new_w = G[v][next_n].get('weight', 1)
-                    heapq.heappush(edges_heap, (new_w, v, next_n))
+    mst_edges = list(T.edges(data=False))
+    total_w = T.size(weight='weight')
+    
     return mst_edges, total_w
 
 def my_kruskal(G):
-    edges = sorted([(data.get('weight', 1), u, v) for u, v, data in G.edges(data=True)])
-    parent = {n: n for n in G.nodes()}
-    def find(n):
-        if parent[n] != n: parent[n] = find(parent[n])
-        return parent[n]
-    def union(u, v):
-        r1, r2 = find(u), find(v)
-        if r1 != r2: parent[r1] = r2; return True
-        return False
+    """Kruskal MST dùng NetworkX"""
+    # Kruskal cũng dùng cho đồ thị vô hướng
+    if G.is_directed(): # NetworkX vẫn chạy được trên Directed nhưng kết quả là Arborescence, thường MST học là Vô hướng
+         # Tuy nhiên hàm minimum_spanning_tree của nx mặc định convert sang undirected nếu cần hoặc chạy trên undirected view
+         # Để an toàn và đúng lý thuyết cơ bản:
+         return None, "Kruskal thường áp dụng cho đồ thị Vô hướng!"
+
+    T = nx.minimum_spanning_tree(G, weight='weight', algorithm='kruskal')
     
-    mst = []
-    total_w = 0
-    for w, u, v in edges:
-        if union(u, v):
-            mst.append((u, v))
-            total_w += w
-    return mst, total_w
+    mst_edges = list(T.edges(data=False))
+    total_w = T.size(weight='weight')
+    return mst_edges, total_w
 
 def my_ford_fulkerson(G, source, sink):
+    """Ford-Fulkerson (Edmonds-Karp) dùng NetworkX"""
     if not G.is_directed(): return None, "Max Flow cần đồ thị CÓ HƯỚNG!"
     
-    R = nx.DiGraph()
-    for u, v, data in G.edges(data=True):
-        capacity = data.get('weight', 1)
-        R.add_edge(u, v, capacity=capacity)
-        R.add_edge(v, u, capacity=0) 
+    try:
+        # nx.maximum_flow mặc định dùng preflow_push (nhanh hơn), nhưng để đúng tên Ford-Fulkerson/Edmonds-Karp:
+        # flow_func=nx.algorithms.flow.edmonds_karp
+        from networkx.algorithms.flow import edmonds_karp
         
-    max_flow = 0
-    path_flow_details = []
-    
-    while True:
-        parent = {node: None for node in R.nodes()}
-        queue = [source]
-        path_found = False
-        while queue:
-            u = queue.pop(0)
-            if u == sink:
-                path_found = True
-                break
-            for v in R.neighbors(u):
-                if parent[v] is None and R[u][v]['capacity'] > 0:
-                    parent[v] = u
-                    queue.append(v)
+        flow_value, flow_dict = nx.maximum_flow(G, source, sink, capacity='weight', flow_func=edmonds_karp)
         
-        if not path_found: break
-        
-        path_flow = float('inf')
-        v = sink
-        path = []
-        while v != source:
-            u = parent[v]
-            path.insert(0, v); path.insert(0, u)
-            path_flow = min(path_flow, R[u][v]['capacity'])
-            v = u
-            
-        max_flow += path_flow
-        path_flow_details.append((list(dict.fromkeys(path)), path_flow))
-        
-        v = sink
-        while v != source:
-            u = parent[v]
-            R[u][v]['capacity'] -= path_flow
-            R[v][u]['capacity'] += path_flow
-            v = u
-            
-    return max_flow, path_flow_details
+        # flow_dict chứa thông tin luồng cụ thể trên từng cạnh, nhưng để đơn giản ta chỉ trả về giá trị max flow
+        # và một thông báo thành công. Chi tiết đường đi tăng luồng thì thư viện không trả về trực tiếp dạng list path.
+        return flow_value, "Thành công"
+    except Exception as e:
+        return None, str(e)
 
 def my_hierholzer(G):
-    if not nx.is_connected(G.to_undirected()): return None, "Đồ thị không liên thông!"
+    """Chu trình Euler dùng NetworkX"""
+    # Kiểm tra điều kiện Euler
+    if not nx.is_eulerian(G):
+        return None, "Đồ thị không có chu trình Euler!"
     
-    if not G.is_directed():
-        odd_nodes = [v for v, d in G.degree() if d % 2 != 0]
-        if odd_nodes: return None, "Không có chu trình Euler (Có đỉnh bậc lẻ)."
-    else:
-        for v in G.nodes():
-            if G.out_degree(v) != G.in_degree(v):
-                return None, "Không có chu trình Euler (Bán bậc ra != Bán bậc vào)."
-
-    temp_G = G.copy()
-    if G.is_directed(): temp_G = nx.MultiDiGraph(G)
-    else: temp_G = nx.MultiGraph(G)
-        
-    stack = [list(temp_G.nodes())[0]]
-    circuit = []
+    # nx.eulerian_circuit trả về iterator các cạnh
+    circuit_edges = list(nx.eulerian_circuit(G))
     
-    while stack:
-        u = stack[-1]
-        if temp_G.degree(u) > 0:
-            v = list(temp_G.neighbors(u))[0]
-            temp_G.remove_edge(u, v)
-            stack.append(v)
-        else:
-            circuit.append(stack.pop())
-            
-    return circuit[::-1], "Thành công"
-
-def my_fleury(G):
-    if not nx.is_connected(G.to_undirected()): return None, "Đồ thị không liên thông!"
+    # Chuyển đổi danh sách cạnh thành danh sách đỉnh tuần tự
+    path = [u for u, v in circuit_edges]
+    path.append(circuit_edges[-1][1]) # Thêm đỉnh cuối cùng
     
-    odd_nodes = [v for v, d in G.degree() if d % 2 != 0]
-    if len(odd_nodes) > 2: return None, "Không có đường đi Euler."
-    
-    u = odd_nodes[0] if odd_nodes else list(G.nodes())[0]
-    
-    temp_G = G.copy()
-    path = [u]
-    
-    while temp_G.number_of_edges() > 0:
-        neighbors = list(temp_G.neighbors(u))
-        
-        next_v = None
-        for v in neighbors:
-            temp_G.remove_edge(u, v)
-            if nx.has_path(temp_G, u, v) or temp_G.degree(u) == 0: 
-                next_v = v
-                break 
-            else:
-                temp_G.add_edge(u, v, weight=1)
-        
-        if next_v is None and neighbors:
-            next_v = neighbors[0]
-            temp_G.remove_edge(u, next_v)
-            
-        if next_v:
-            path.append(next_v)
-            u = next_v
-        else:
-            break
-            
     return path, "Thành công"
 
-def check_bipartite_manual(G):
-    """Kiểm tra đồ thị 2 phía bằng BFS tô màu"""
-    color = {}
-    for node in G.nodes():
-        if node not in color:
-            color[node] = 0
-            queue = [node]
-            while queue:
-                u = queue.pop(0)
-                for v in G.neighbors(u):
-                    if v not in color:
-                        color[v] = 1 - color[u]
-                        queue.append(v)
-                    elif color[v] == color[u]:
-                        return False, {}
-    return True, color
+def my_fleury(G):
+    """Đường đi Euler (Fleury tương đương) dùng NetworkX"""
+    # NetworkX có hàm has_eulerian_path để kiểm tra đường đi Euler
+    if nx.has_eulerian_path(G):
+         # nx.eulerian_path tìm đường đi Euler (nếu có chu trình thì nó trả về chu trình)
+         path_edges = list(nx.eulerian_path(G))
+         path = [u for u, v in path_edges]
+         path.append(path_edges[-1][1])
+         return path, "Thành công"
+    else:
+        return None, "Không có đường đi Euler."
 
+def check_bipartite_manual(G):
+    """Kiểm tra 2 phía dùng NetworkX"""
+    if nx.is_bipartite(G):
+        # Lấy 2 tập hợp màu
+        color_map = nx.bipartite.color(G)
+        return True, color_map
+    else:
+        return False, {}
+
+
+# ==============================================================================
+# PHẦN 2: GIAO DIỆN & HÀM VẼ (GIỮ NGUYÊN FORM)
+# ==============================================================================
 
 def ve_do_thi(G, highlight_edges=None, highlight_nodes=None, title="", color_map=None, show_weights=True):
     pos = nx.spring_layout(G, seed=42)
@@ -474,5 +358,3 @@ if 'graph' in st.session_state:
 
 else:
     st.info("👈Bạn nhập thanh dữ liệu bên trái để bắt đầu nhé .")
-
-
