@@ -2,4 +2,6 @@ streamlit
 networkx
 pandas
 matplotlib
-scipy
+osmnx
+folium
+streamlit-folium
